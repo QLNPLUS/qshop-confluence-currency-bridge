@@ -1,74 +1,39 @@
 plugins {
-    id 'eclipse'
+    id 'java-library'
     id 'idea'
     id 'maven-publish'
-    id 'net.minecraftforge.gradle' version '[6.0.16,6.2)'
+    id 'net.neoforged.moddev' version '2.0.141'
 }
 
-group = 'com.qshop.confluence'
-version = '1.0.0'
-base { archivesName = "qshop-confluence-forge-1.20.1" }
+version = mod_version
+group = mod_group_id
+base { archivesName = "${mod_id}-neoforge-1.21.1" }
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
-minecraft {
-    mappings channel: 'official', version: '1.20.1'
+neoForge {
+    version = project.neo_version
     runs {
+        client { client() }
+        server { server() }
         configureEach {
-            workingDirectory project.file('run')
-            property 'forge.logging.console.level', 'debug'
-            // 开发环境里 mixin 注解里的名字就是 official 名字，直接按它解析即可。
-            // ForgeGradle 6 不再生成 mixin.env.refMapRemappingFile 需要的 SRG→official 映射表
-            // （只有反方向的 build/createMcpToSrg/output.tsrg），所以第三方 jar 的 SRG refmap
-            // 在开发环境里注定解析不到，例如 PortLib。生产环境不受影响：那里走的是
-            // 我们 jar 里真正的 refmap（含 patchRefmap 补的两条 searge 映射）。
-            property 'mixin.env.disableRefMap', 'true'
-            mods {
-                qshop_confluence { source sourceSets.main }
-            }
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
+            // NeoForge 1.21.1 运行时就是 Mojang official 名字，refmap 里的 SRG 值反而解析不到，
+            // 所以开发环境直接按注解里的字面名字解析。
+            systemProperty 'mixin.env.disableRefMap', 'true'
         }
-        client {}
-        server {}
+    }
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
     }
 }
-
-// ---------------------------------------------------------------------------
-// 兄弟项目依赖：QShop / 出售箱都没有发布到 Maven，只能引用本地构建产物。
-// ForgeGradle 的 fg.deobf() 无法处理 files(...)（会打印
-// "Cannot deobfuscate dependency ... using obfuscated version!"），
-// 所以先把 jar 复制到 libs/ 下用 flatDir 坐标引用，这样 FG 才会做 SRG→official 重映射。
-// ---------------------------------------------------------------------------
-def stageSiblingJar = { String propertyName, String stagedName ->
-    def raw = findProperty(propertyName)
-    if (raw == null || raw.toString().isBlank()) {
-        throw new GradleException("gradle.properties 缺少 ${propertyName}")
-    }
-    def source = file(raw.toString())
-    if (!source.isFile()) {
-        throw new GradleException("未找到依赖 jar（${propertyName}）: ${source}\n" +
-                "请先构建对应项目，或用 -P${propertyName}=<path> 指定。")
-    }
-    def target = file("${rootDir}/libs/${stagedName}")
-    if (!target.isFile() || target.length() != source.length() || target.lastModified() < source.lastModified()) {
-        target.parentFile.mkdirs()
-        java.nio.file.Files.copy(source.toPath(), target.toPath(),
-                java.nio.file.StandardCopyOption.REPLACE_EXISTING)
-        logger.lifecycle("已同步依赖 jar: ${source.name} -> libs/${stagedName}")
-    }
-    return target
-}
-
-stageSiblingJar('qshop_jar', 'qshop-1.0.jar')
-stageSiblingJar('sellbox_jar', 'qshop_sellbox-1.0.jar')
 
 repositories {
-    maven { url = 'https://maven.minecraftforge.net' }
     mavenCentral()
-    flatDir { dirs "${rootDir}/libs" }
-    // QShop 系列依赖的第三方库
-    maven { url = 'https://maven.latvian.dev/releases' }
-    maven { url = 'https://maven.architectury.dev/' }
-    maven { url = 'https://maven.fabricmc.net/' }
+    maven { name = 'NeoForge'; url = 'https://maven.neoforged.net/releases/' }
     // Confluence 官方 Maven
     maven { name = 'Confluence'; url = 'https://maven.confluence.ink/releases' }
     // 第三方模组默认走 CurseForge Maven
@@ -84,86 +49,47 @@ repositories {
     }
 }
 
+// ---------------------------------------------------------------------------
+// 兄弟项目依赖：QShop / 出售箱都没有发布到 Maven，只能引用本地构建产物。
+// NeoForge 1.21.1 的模组 jar 用的就是 official 名字，不需要 deobf，直接 files() 即可。
+// ---------------------------------------------------------------------------
+def siblingJar = { String propertyName ->
+    def raw = findProperty(propertyName)
+    if (raw == null || raw.toString().isBlank()) {
+        throw new GradleException("gradle.properties 缺少 ${propertyName}")
+    }
+    def source = file(raw.toString())
+    if (!source.isFile()) {
+        throw new GradleException("未找到依赖 jar（${propertyName}）: ${source}\n" +
+                "请先构建对应项目，或用 -P${propertyName}=<path> 指定。")
+    }
+    return source
+}
+
+def qshopJarFile = siblingJar('qshop_jar')
+def sellboxJarFile = siblingJar('sellbox_jar')
+
 dependencies {
-    minecraft 'net.minecraftforge:forge:1.20.1-47.4.20'
-
     // QShop 是硬依赖；出售箱与 Confluence 运行时可缺，但编译期需要它们的类。
-    compileOnly fg.deobf('local:qshop:1.0')
-    compileOnly fg.deobf('local:qshop_sellbox:1.0')
-    compileOnly fg.deobf(findProperty('confluence_jar'))
-
-    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    compileOnly files(qshopJarFile)
+    compileOnly files(sellboxJarFile)
+    compileOnly findProperty('confluence_jar')
 
     // 开发环境冒烟测试用的运行时依赖（Confluence 本体 + 它要求的前置）。
     // 默认关闭以保持普通 build 轻量；跑冒烟测试时加 -Pwith_confluence_runtime=true。
     if (findProperty('with_confluence_runtime') == 'true') {
-        runtimeOnly fg.deobf('local:qshop:1.0')
-        runtimeOnly fg.deobf('local:qshop_sellbox:1.0')
-        runtimeOnly fg.deobf(findProperty('confluence_jar'))
-        runtimeOnly fg.deobf('top.theillusivec4.curios:curios-forge:5.14.1+1.20.1')
-        runtimeOnly fg.deobf('software.bernie.geckolib:geckolib-forge-1.20.1:4.8.4')
-        def portlib = file("${rootDir}/libs/mesdagportlib-1.0.jar")
-        if (portlib.isFile()) {
-            runtimeOnly fg.deobf('local:mesdagportlib:1.0')
-        } else {
-            logger.warn("缺少 libs/mesdagportlib-1.0.jar；Confluence 需要 MesdagPortLib，" +
-                    "服务器冒烟测试会因缺少前置失败。运行 tools/fetch-dev-runtime.ps1 下载。")
-        }
+        runtimeOnly files(qshopJarFile)
+        runtimeOnly files(sellboxJarFile)
+        runtimeOnly findProperty('confluence_jar')
+        runtimeOnly "top.theillusivec4.curios:curios-neoforge:${curios_version}"
+        runtimeOnly "software.bernie.geckolib:geckolib-neoforge-1.21.1:${geckolib_version}"
     }
 }
 
-// ForgeGradle 6 自带的 Mixin 支持不通过 mixin {} 扩展暴露，这里直接配置注解处理器。
-def refmapFile = layout.buildDirectory.file("classes/java/main/${mod_id}.refmap.json")
-tasks.named('compileJava', JavaCompile).configure {
+tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
-    options.compilerArgs += [
-            "-AoutRefMapFile=${refmapFile.get().asFile.absolutePath}",
-            "-AoutTsrgFile=${layout.buildDirectory.file('createMcpToSrg/output.tsrg').get().asFile.absolutePath}",
-            '-AmappingTypes=tsrg',
-            '-AdefaultObfuscationEnv=searge',
-    ]
+    options.release = 21
 }
-
-// 注解处理器在没有 MixinGradle 的情况下拿不到 obf→SRG 映射表，只能生成空 refmap。
-// 我们只有两处注入点指向原版方法（出售箱聊天消息里的 Component#translatable），
-// 这里按 Confluence 自己的做法补上这两条 searge 映射。
-// Component#translatable(String, Object[]) 的 SRG 名 m_237110_ 来自
-// build/createMcpToSrg/output.tsrg，可用 -Pprint_translatable_srg=true 复核。
-tasks.register('patchRefmap') {
-    dependsOn tasks.named('compileJava')
-    def target = 'Lnet/minecraft/network/chat/Component;m_237110_(Ljava/lang/String;[Ljava/lang/Object;)Lnet/minecraft/network/chat/MutableComponent;'
-    def entries = [
-            'com/qshop/confluence/mixin/sellbox/SellBoxSaleServiceMixin': ['qshop_confluence$soldMessage': target],
-            'com/qshop/confluence/mixin/sellbox/SellBoxEventsMixin'    : ['qshop_confluence$syncedMessage': target],
-    ]
-    doLast {
-        def file = refmapFile.get().asFile
-        if (!file.isFile()) {
-            throw new GradleException("未生成 refmap: ${file}")
-        }
-        def json = new groovy.json.JsonSlurper().parse(file) as Map
-        def mappings = new LinkedHashMap(json.mappings ?: [:])
-        def data = new LinkedHashMap(json.data ?: [:])
-        def searge = new LinkedHashMap(data.searge ?: [:])
-        entries.each { owner, methods ->
-            def ownerMappings = new LinkedHashMap(mappings[owner] ?: [:])
-            def ownerSearge = new LinkedHashMap(searge[owner] ?: [:])
-            methods.each { method, ref ->
-                ownerMappings[method] = ref
-                ownerSearge[method] = ref
-            }
-            mappings[owner] = ownerMappings
-            searge[owner] = ownerSearge
-        }
-        data.searge = searge
-        json.mappings = mappings
-        json.data = data
-        file.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(json))
-        logger.lifecycle("已补全 refmap: ${file}")
-    }
-}
-
-tasks.withType(JavaCompile).configureEach { it.options.encoding = 'UTF-8' }
 
 processResources {
     inputs.properties([
@@ -173,22 +99,29 @@ processResources {
             mod_license    : mod_license,
             mod_authors    : mod_authors,
             mod_description: mod_description,
+            neo_version_range   : neo_version_range,
+            minecraft_version_range: minecraft_version_range,
+            loader_version_range: loader_version_range,
     ])
-    filesMatching('META-INF/mods.toml') { expand inputs.properties }
+    filesMatching('META-INF/neoforge.mods.toml') { expand inputs.properties }
 }
 
 jar {
-    dependsOn 'patchRefmap'
     manifest {
         attributes([
                 'Specification-Title'   : mod_id,
                 'Specification-Vendor'  : mod_authors,
                 'Specification-Version' : '1',
                 'Implementation-Title'  : mod_name,
-                'Implementation-Version': project.jar.archiveVersion,
+                'Implementation-Version': project.version,
                 'Implementation-Vendor' : mod_authors,
                 'MixinConfigs'          : "${mod_id}.mixins.json",
         ])
     }
-    finalizedBy 'reobfJar'
+}
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) { from components.java }
+    }
 }

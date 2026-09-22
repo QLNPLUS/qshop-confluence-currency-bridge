@@ -34,21 +34,28 @@ Known platform gaps (re-check, do not copy blindly):
 This mod is an addon: it has no upstream repository of its own for QShop, so it compiles
 against the sibling projects' build outputs.
 
-| Project | Property | Default path |
+| Project | Property | Default path (this worktree) |
 |---|---|---|
-| QShop | `qshop_jar` | `../q_shop/<loader>/build/libs/qshop-<loader>-<mc>-<version>.jar` |
-| QShop Sell Box | `sellbox_jar` | `../q_shop_sellbox/<loader>/build/libs/...` |
+| QShop | `qshop_jar` | `../../q_shop/neoforge-1.21.1/build/libs/qshop-neoforge-1.21.1-<version>.jar` |
+| QShop Sell Box | `sellbox_jar` | `../../q_shop_sellbox/neoforge-1.21.1/build/libs/...` |
 
-`build.gradle` stages those jars into `libs/` (flatDir) because ForgeGradle's `fg.deobf()`
-cannot deobfuscate a `files(...)` dependency. Build the sibling projects before this one.
-Confluence itself comes from CurseForge Maven (`curse.maven:confluence-1209464:<fileId>`).
+This worktree sits one level below the project root, so the sibling paths use `../../`
+(the `forge-1.20.1` worktree, which owns `.git`, uses `../`).
+
+NeoForge 1.21.1 mod jars already use Mojang official names, so they are consumed with plain
+`files(...)` — no `fg.deobf`, no flatDir staging, no `libs/` copy step. The Forge branch needs
+all three because ForgeGradle cannot deobfuscate a `files(...)` dependency.
+Confluence itself comes from CurseForge Maven (`curse.maven:confluence-1209464:8940190`).
 
 ## Verification
 
 - `gradlew build` — compiles and produces the release JAR.
 - `gradlew runServer -Pwith_confluence_runtime=true` — dev server with QShop, Sell Box,
-  Confluence, Curios, GeckoLib and MesdagPortLib on the classpath. `tools/fetch-dev-runtime.ps1`
-  downloads the one prerequisite that has no Maven coordinates.
+  Confluence, Curios and GeckoLib on the classpath. Confluence's NeoForge build does **not**
+  need MesdagPortLib, so this branch has no `tools/fetch-dev-runtime.ps1`.
 - Release-JAR checks that a compile cannot prove: `MixinConfigs` in `META-INF/MANIFEST.MF`,
-  `pack.mcmeta` at the archive root, and non-empty refmap entries for the two
-  `Component#translatable` redirects (Forge branch only).
+  `pack.mcmeta` at the archive root, and `META-INF/neoforge.mods.toml` as the only mod metadata
+  file at the archive root.
+- No refmap on this branch: NeoForge 1.21.1 runs official names, so the two
+  `Component#translatable` redirects use `remap = false` and the mixin config declares no refmap.
+  The `forge-1.20.1` branch needs `patchRefmap` for exactly those two entries.

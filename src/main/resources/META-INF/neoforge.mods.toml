@@ -1,7 +1,6 @@
 modLoader = "javafml"
-loaderVersion = "[47,)"
+loaderVersion = "${loader_version_range}"
 license = "${mod_license}"
-issueTrackerURL = "https://github.com/"
 
 [[mods]]
 modId = "${mod_id}"
@@ -10,24 +9,29 @@ displayName = "${mod_name}"
 authors = "${mod_authors}"
 description = '''${mod_description}'''
 
+# NeoForge 从 neoforge.mods.toml 读混入配置（Forge 1.20.1 那分支读的是 MANIFEST 的
+# MixinConfigs；两边都要有，否则开发环境里混入根本不加载）。
+[[mixins]]
+config = "${mod_id}.mixins.json"
+
 [[dependencies.${mod_id}]]
-modId = "forge"
-mandatory = true
-versionRange = "[47.4.20,)"
+modId = "neoforge"
+type = "required"
+versionRange = "${neo_version_range}"
 ordering = "NONE"
 side = "BOTH"
 
 [[dependencies.${mod_id}]]
 modId = "minecraft"
-mandatory = true
-versionRange = "[1.20.1,1.21)"
+type = "required"
+versionRange = "${minecraft_version_range}"
 ordering = "NONE"
 side = "BOTH"
 
 # QShop 是硬依赖：本模组的工作方式就是接管 QShop 的钱包入口。
 [[dependencies.${mod_id}]]
 modId = "qshop"
-mandatory = true
+type = "required"
 versionRange = "[1.8.0,)"
 ordering = "AFTER"
 side = "BOTH"
@@ -35,14 +39,14 @@ side = "BOTH"
 # Confluence 与出售箱按可选处理：缺失时对应功能自动关闭，不会启动崩溃。
 [[dependencies.${mod_id}]]
 modId = "confluence"
-mandatory = false
+type = "optional"
 versionRange = "[1.2.0,)"
 ordering = "AFTER"
 side = "BOTH"
 
 [[dependencies.${mod_id}]]
 modId = "qshop_sellbox"
-mandatory = false
+type = "optional"
 versionRange = "[1.5.0,)"
 ordering = "AFTER"
 side = "BOTH"

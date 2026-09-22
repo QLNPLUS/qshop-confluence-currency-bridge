@@ -66,7 +66,7 @@ public final class ConfluenceSupport {
     /**
      * 不会加载类的探测，可以安全地在 Mixin 配置准备阶段调用。
      *
-     * <p>先查 Forge 的模组列表（最权威），拿不到时退回资源查找。</p>
+     * <p>先查 NeoForge 的模组列表（最权威），拿不到时退回资源查找。</p>
      */
     public static boolean modPresent(String modId, String classResource) {
         Boolean byModList = modListCheck(modId);
@@ -89,7 +89,7 @@ public final class ConfluenceSupport {
     /** @return 能确定时返回结果；模组列表尚未建立时返回 null。 */
     private static Boolean modListCheck(String modId) {
         try {
-            net.minecraftforge.fml.ModList modList = net.minecraftforge.fml.ModList.get();
+            net.neoforged.fml.ModList modList = net.neoforged.fml.ModList.get();
             if (modList != null) {
                 return modList.getModContainerById(modId).isPresent();
             }
@@ -97,7 +97,7 @@ public final class ConfluenceSupport {
             // ModList 还没建立，继续往下试
         }
         try {
-            net.minecraftforge.fml.loading.LoadingModList loading = net.minecraftforge.fml.loading.LoadingModList.get();
+            net.neoforged.fml.loading.LoadingModList loading = net.neoforged.fml.loading.LoadingModList.get();
             if (loading != null) {
                 return loading.getModFileById(modId) != null;
             }

@@ -1,6 +1,6 @@
 package com.qshop.confluence;
 
-import net.minecraftforge.common.ForgeConfigSpec;
+import net.neoforged.neoforge.common.ModConfigSpec;
 
 /**
  * 通用配置。值在配置加载/重载后缓存，避免每次读写余额都触碰配置系统，
@@ -10,15 +10,15 @@ public final class BridgeConfig {
 
     public static final String DEFAULT_CURRENCY_ID = "coins";
 
-    public static final ForgeConfigSpec SPEC;
+    public static final ModConfigSpec SPEC;
 
-    private static final ForgeConfigSpec.ConfigValue<String> CURRENCY_ID;
-    private static final ForgeConfigSpec.BooleanValue INCLUDE_PIGGY_BANK;
-    private static final ForgeConfigSpec.BooleanValue OFFLINE_PAYOUT;
-    private static final ForgeConfigSpec.BooleanValue SKIP_DEATH_RETENTION;
-    private static final ForgeConfigSpec.BooleanValue SELLBOX_PRICE_FORMAT;
-    private static final ForgeConfigSpec.BooleanValue AUTO_CREATE_CURRENCY;
-    private static final ForgeConfigSpec.ConfigValue<String> AUTO_CREATE_NAME;
+    private static final ModConfigSpec.ConfigValue<String> CURRENCY_ID;
+    private static final ModConfigSpec.BooleanValue INCLUDE_PIGGY_BANK;
+    private static final ModConfigSpec.BooleanValue OFFLINE_PAYOUT;
+    private static final ModConfigSpec.BooleanValue SKIP_DEATH_RETENTION;
+    private static final ModConfigSpec.BooleanValue SELLBOX_PRICE_FORMAT;
+    private static final ModConfigSpec.BooleanValue AUTO_CREATE_CURRENCY;
+    private static final ModConfigSpec.ConfigValue<String> AUTO_CREATE_NAME;
 
     private static volatile String currencyId;
     private static volatile Boolean includePiggyBank;
@@ -29,7 +29,7 @@ public final class BridgeConfig {
     private static volatile String autoCreateName;
 
     static {
-        ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
+        ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
 
         builder.comment("QShop 货币 ↔ Confluence 钱币绑定设置",
                 "QShop currency id bound to Confluence coin money").push("bridge");
@@ -170,7 +170,7 @@ public final class BridgeConfig {
     }
 
     /** 配置尚未加载时 get() 会抛异常，这里统一退化成默认值。 */
-    private static <T> T read(ForgeConfigSpec.ConfigValue<T> value, T fallback) {
+    private static <T> T read(ModConfigSpec.ConfigValue<T> value, T fallback) {
         try {
             T read = value.get();
             return read == null ? fallback : read;

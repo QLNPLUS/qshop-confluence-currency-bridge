@@ -6,15 +6,15 @@ import com.qshop.currency.CurrencyRegistry;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.event.RegisterCommandsEvent;
-import net.minecraftforge.event.entity.player.PlayerEvent;
-import net.minecraftforge.event.server.ServerStartedEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.event.config.ModConfigEvent;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.event.config.ModConfigEvent;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import org.slf4j.Logger;
 
 /**
- * Forge 总线事件：配置缓存失效、离线账面补发、货币条目自动创建、指令注册。
+ * NeoForge 游戏总线事件：配置缓存失效、离线账面补发、货币条目自动创建、指令注册。
  */
 public final class BridgeEvents {
 
@@ -39,7 +39,7 @@ public final class BridgeEvents {
         }
     }
 
-    // ---- Forge 总线 ----
+    // ---- 游戏总线 ----
 
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {

@@ -17,7 +17,7 @@ public abstract class SellBoxEventsMixin {
     @Redirect(method = "onPlayerLoggedIn",
             at = @At(value = "INVOKE",
                     target = "Lnet/minecraft/network/chat/Component;translatable(Ljava/lang/String;[Ljava/lang/Object;)Lnet/minecraft/network/chat/MutableComponent;"),
-            require = 0)
+            remap = false, require = 0)
     private static MutableComponent qshop_confluence$syncedMessage(String key, Object[] args) {
         return ConfluenceMessages.rewrite(key, args, "qshop_sellbox.message.synced");
     }

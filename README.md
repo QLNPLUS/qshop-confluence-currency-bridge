@@ -61,21 +61,22 @@
 ## 构建
 
 ```powershell
-# 先构建兄弟项目
-cd ..\q_shop\forge-1.20.1        ; .\gradlew.bat build
-cd ..\q_shop_sellbox\forge-1.20.1 ; .\gradlew.bat build
+# 先构建兄弟项目（neoforge 1.21.1 分支）
+cd ..\..\q_shop\neoforge-1.21.1          ; .\gradlew.bat build
+cd ..\..\q_shop_sellbox\neoforge-1.21.1  ; .\gradlew.bat build
 
-# 再构建本模组
-cd ..\..\confluence_currency_combat
+# 再构建本模组（当前目录就是 neoforge-1.21.1 工作树）
 .\gradlew.bat build
 ```
 
 冒烟测试（带 Confluence 全套前置的开发服务器）：
 
 ```powershell
-.\tools\fetch-dev-runtime.ps1                     # 下载没有 Maven 坐标的 MesdagPortLib
 .\gradlew.bat runServer -Pwith_confluence_runtime=true
 ```
+
+NeoForge 1.21.1 的 Confluence 不需要 MesdagPortLib，所以本分支没有下载脚本；
+开发服务器默认端口写在 `run/server.properties` 里（25577），避免和别的开发服务器抢端口。
 
 ## 许可
 

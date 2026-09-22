@@ -1,5 +1,6 @@
 package com.qshop.confluence;
 
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.saveddata.SavedData;
@@ -21,11 +22,11 @@ public class PendingMoney extends SavedData {
     private final Map<UUID, Long> pending = new HashMap<>();
 
     public static PendingMoney get(MinecraftServer server) {
-        return server.overworld().getDataStorage()
-                .computeIfAbsent(PendingMoney::load, PendingMoney::new, DATA_NAME);
+        return server.overworld().getDataStorage().computeIfAbsent(
+                new SavedData.Factory<>(PendingMoney::new, PendingMoney::load, null), DATA_NAME);
     }
 
-    public static PendingMoney load(CompoundTag tag) {
+    public static PendingMoney load(CompoundTag tag, HolderLookup.Provider registries) {
         PendingMoney data = new PendingMoney();
         CompoundTag entries = tag.getCompound("pending");
         for (String key : entries.getAllKeys()) {
@@ -42,7 +43,7 @@ public class PendingMoney extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag tag) {
+    public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
         CompoundTag entries = new CompoundTag();
         for (Map.Entry<UUID, Long> entry : pending.entrySet()) {
             if (entry.getValue() != null && entry.getValue() != 0L) {
