@@ -23,6 +23,8 @@ public class BridgeMixinPlugin implements IMixinConfigPlugin {
 
     private static final String QSHOP_PREFIX = "com.qshop.confluence.mixin.qshop.";
     private static final String SELLBOX_PREFIX = "com.qshop.confluence.mixin.sellbox.";
+    private static final String NPC_PREFIX = "com.qshop.confluence.mixin.npc.";
+    private static final String INVENTORY_PREFIX = "com.qshop.confluence.mixin.inventory.";
 
     @Override
     public void onLoad(String mixinPackage) {
@@ -36,6 +38,15 @@ public class BridgeMixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
+        if (mixinClassName.startsWith(INVENTORY_PREFIX)) {
+            return ConfluenceSupport.modPresent("confluence", ConfluenceSupport.CONFLUENCE_PROBE)
+                    && ConfluenceSupport.modPresent("qshop", ConfluenceSupport.QSHOP_PROBE);
+        }
+        if (mixinClassName.startsWith(NPC_PREFIX)) {
+            return ConfluenceSupport.modPresent("confluence", ConfluenceSupport.CONFLUENCE_PROBE)
+                    && ConfluenceSupport.modPresent("qshop_sellbox", ConfluenceSupport.SELLBOX_PROBE)
+                    && ConfluenceSupport.modPresent("qshop", ConfluenceSupport.QSHOP_PROBE);
+        }
         if (mixinClassName.startsWith(SELLBOX_PREFIX)) {
             return ConfluenceSupport.modPresent("qshop_sellbox", ConfluenceSupport.SELLBOX_PROBE)
                     && ConfluenceSupport.modPresent("qshop", ConfluenceSupport.QSHOP_PROBE);

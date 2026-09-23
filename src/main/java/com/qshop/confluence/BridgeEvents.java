@@ -3,22 +3,30 @@ package com.qshop.confluence;
 import com.mojang.logging.LogUtils;
 import com.qshop.currency.Currency;
 import com.qshop.currency.CurrencyRegistry;
-import net.minecraft.network.chat.Component;
-import net.minecraft.server.MinecraftServer;
+import com.qshop.wallet.IWallet;
+import com.qshop.wallet.WalletCapability;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.event.config.ModConfigEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.neoforge.event.entity.item.ItemTossEvent;
+import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import org.slf4j.Logger;
 
-/**
- * NeoForge 游戏总线事件：配置缓存失效、离线账面补发、货币条目自动创建、指令注册。
- */
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
+
+/** NeoForge 游戏总线事件：配置缓存失效、背包余额同步、货币条目自动创建、指令注册。 */
 public final class BridgeEvents {
 
     private static final Logger LOGGER = LogUtils.getLogger();
+    private static final int RECONCILE_FALLBACK_TICKS = 100;
+    private static final Set<UUID> DIRTY_CURRENCY_PLAYERS = new HashSet<>();
 
     private BridgeEvents() {
     }
@@ -46,28 +54,79 @@ public final class BridgeEvents {
         BridgeCommand.register(event.getDispatcher());
     }
 
-    /** 登录时把离线期间记下的绑定货币补发成钱币。 */
+    /** Login reconciles the saved QShop total, carried coins, reserve, and any legacy pending payout. */
     @SubscribeEvent
     public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
-        if (!(event.getEntity() instanceof ServerPlayer player)) {
+        if (!(event.getEntity() instanceof ServerPlayer player) || !ConfluenceCurrencyBridge.active()) {
             return;
         }
-        if (!ConfluenceCurrencyBridge.active() || !BridgeConfig.offlinePayout()) {
+        IWallet wallet = WalletCapability.get(player);
+        if (wallet != null) {
+            wallet.getBalance(BridgeConfig.currencyId());
+        }
+    }
+
+    @SubscribeEvent
+    public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        DIRTY_CURRENCY_PLAYERS.remove(event.getEntity().getUUID());
+    }
+
+    /** Queues a player for a balance reconciliation at the end of their current/next tick. */
+    public static void markCurrencyInventoryDirty(ServerPlayer player) {
+        if (player != null && ConfluenceCurrencyBridge.active()) {
+            DIRTY_CURRENCY_PLAYERS.add(player.getUUID());
+        }
+    }
+
+    @SubscribeEvent
+    public static void onCurrencyItemPickup(ItemEntityPickupEvent.Post event) {
+        if (event.getEntity() instanceof ServerPlayer player
+                && ConfluenceMoney.isBridgeCurrencyStack(event.getOriginalStack())) {
+            markCurrencyInventoryDirty(player);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onCurrencyItemToss(ItemTossEvent event) {
+        if (event.getPlayer() instanceof ServerPlayer player
+                && ConfluenceMoney.isBridgeCurrencyStack(event.getEntity().getItem())) {
+            markCurrencyInventoryDirty(player);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onCurrencyRightClickItem(PlayerInteractEvent.RightClickItem event) {
+        if (event.getEntity() instanceof ServerPlayer player
+                && ConfluenceMoney.isBridgeCurrencyStack(event.getItemStack())) {
+            markCurrencyInventoryDirty(player);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onCurrencyRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
+        if (event.getEntity() instanceof ServerPlayer player
+                && ConfluenceMoney.isBridgeCurrencyStack(event.getItemStack())) {
+            markCurrencyInventoryDirty(player);
+        }
+    }
+
+    /**
+     * Reconcile after money-related actions and scan every few seconds as a low-frequency
+     * fallback for inventory changes without a dedicated event.
+     */
+    @SubscribeEvent
+    public static void onPlayerTick(PlayerTickEvent.Post event) {
+        if (!(event.getEntity() instanceof ServerPlayer player) || !ConfluenceCurrencyBridge.active()) {
             return;
         }
-        MinecraftServer server = player.getServer();
-        if (server == null) {
+        boolean dirty = DIRTY_CURRENCY_PLAYERS.remove(player.getUUID());
+        if (!dirty && player.tickCount % RECONCILE_FALLBACK_TICKS != 0) {
             return;
         }
-        long amount = PendingMoney.get(server).take(player.getUUID());
-        if (amount <= 0L) {
-            return;
+        IWallet wallet = WalletCapability.get(player);
+        if (wallet != null) {
+            wallet.getBalance(BridgeConfig.currencyId());
         }
-        ConfluenceCurrencyBridge.credit(player, amount);
-        player.sendSystemMessage(Component.translatable("qshop_confluence.message.pending_paid",
-                ConfluenceCurrencyFormat.toComponent(amount)));
-        LOGGER.info("QShop Confluence Bridge: 向 {} 补发离线收益 {} 铜币",
-                player.getGameProfile().getName(), amount);
     }
 
     /** 启动完成后确保绑定货币在 QShop 货币表里存在。 */

@@ -9,7 +9,10 @@
     "qshop.CurrencyServiceMixin",
     "sellbox.PriceQuoteMixin",
     "sellbox.SellBoxSaleServiceMixin",
-    "sellbox.SellBoxEventsMixin"
+    "sellbox.SellBoxEventsMixin",
+    "npc.NPCTradeMenuMixin",
+    "npc.NPCTradeBuybackAccessor",
+    "inventory.AbstractContainerMenuMixin"
   ],
   "client": [
     "sellbox.SellBoxClientMixin"

@@ -37,8 +37,7 @@ public final class ConfluenceWallet implements IWallet {
         if (!bound(currencyId)) {
             return base.getBalance(currencyId);
         }
-        // 钱包里为绑定货币保存的是小数余量；整数部分无意义（见 fractionOf 注释）。
-        return ConfluenceCurrencyBridge.readBalance(player, ConfluenceCurrencyBridge.fractionOf(base.getBalance(currencyId)));
+        return ConfluenceCurrencyBridge.readBalance(player, base, currencyId);
     }
 
     @Override
@@ -47,9 +46,7 @@ public final class ConfluenceWallet implements IWallet {
             base.setBalance(currencyId, amount);
             return;
         }
-        ConfluenceCurrencyBridge.writeBalance(player, amount);
-        // 余量写回底层钱包，跟随玩家数据持久化。
-        base.setBalance(currencyId, ConfluenceCurrencyBridge.fractionOf(amount));
+        ConfluenceCurrencyBridge.writeBalance(player, base, currencyId, amount);
     }
 
     @Override
@@ -62,7 +59,8 @@ public final class ConfluenceWallet implements IWallet {
     @Override
     public boolean take(String currencyId, double amount) {
         double balance = getBalance(currencyId);
-        if (balance + EPSILON < amount) {
+        if (balance + EPSILON < amount || (bound(currencyId)
+                && balance - amount + EPSILON < ConfluenceCurrencyBridge.cursorFloor(player))) {
             return false;
         }
         setBalance(currencyId, balance - amount);
@@ -77,6 +75,7 @@ public final class ConfluenceWallet implements IWallet {
     @Override
     public Map<String, Double> snapshot() {
         Map<String, Double> snapshot = new LinkedHashMap<>(base.snapshot());
+        snapshot.keySet().removeIf(BridgeWalletData::isInternalKey);
         String boundId = BridgeConfig.currencyId();
         if (boundId != null && !boundId.isEmpty() && bound(boundId)) {
             snapshot.put(boundId, getBalance(boundId));

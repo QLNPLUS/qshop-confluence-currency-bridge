@@ -49,9 +49,9 @@ public final class BridgeConfig {
                 .define("includePiggyBank", true);
 
         OFFLINE_PAYOUT = builder
-                .comment("玩家离线时（例如出售箱离线收益）记账，登录时以钱币形式补发。",
-                        "关闭时离线入账会被丢弃。",
-                        "Queue bound-currency earnings for offline players and pay them as coins on login.")
+                .comment("兼容旧版本排队的离线收入；新版本的离线余额直接保存在 QShop 钱包。",
+                        "关闭时，旧版本遗留的待补发金额不会在登录时发放。",
+                        "Controls delivery of pending payouts from older versions; new offline balances use the saved QShop wallet.")
                 .define("offlinePayout", true);
 
         SKIP_DEATH_RETENTION = builder
@@ -77,8 +77,8 @@ public final class BridgeConfig {
 
         SELLBOX_PRICE_FORMAT = builder
                 .comment("出售箱显示该绑定货币的价格时，改用 Confluence 面额格式",
-                        "（例如 1234567 铜 → 1 铂金币 23 金币 45 银币 67 铜币）。",
-                        "Show bound-currency prices in the sell box using Confluence coin denominations.")
+                        "使用 Confluence 原生币种名称、颜色和价格格式。",
+                        "Show bound-currency prices with Confluence's native denomination names, colors, and price format.")
                 .define("confluencePriceFormat", true);
 
         builder.pop();

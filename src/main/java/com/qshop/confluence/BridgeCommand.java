@@ -40,7 +40,6 @@ public final class BridgeCommand {
                 + " confluence=" + ConfluenceSupport.isLoaded()
                 + " sellbox=" + ConfluenceSupport.sellboxPresent()
                 + " includePiggyBank=" + BridgeConfig.includePiggyBank()
-                + " offlinePayout=" + BridgeConfig.offlinePayout()
                 + " sellboxFormat=" + BridgeConfig.sellboxPriceFormat()), false);
 
         ServerPlayer player = source.getPlayer();
