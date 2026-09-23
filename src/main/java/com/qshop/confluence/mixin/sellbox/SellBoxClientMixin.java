@@ -39,6 +39,7 @@ public abstract class SellBoxClientMixin {
         }
 
         var tooltip = event.getToolTip();
+        Component rewrittenLine = null;
         for (int i = tooltip.size() - 1; i >= 0; i--) {
             Component line = tooltip.get(i);
             if (!(line.getContents() instanceof TranslatableContents contents)
@@ -58,10 +59,28 @@ public abstract class SellBoxClientMixin {
 
             // SellBox pays quote.price() * stack count; display that same total for this stack.
             long copper = ConfluenceCurrencyFormat.toCopper(unitPrice * event.getItemStack().getCount());
-            tooltip.set(i, Component.translatable("tooltip.price.sell")
+            rewrittenLine = Component.translatable("tooltip.price.sell")
                     .withStyle(ChatFormatting.GRAY)
-                    .append(formatNativePrice(copper)));
+                    .append(formatNativePrice(copper));
+            tooltip.set(i, rewrittenLine);
+            break;
+        }
+
+        if (rewrittenLine == null) {
             return;
+        }
+
+        // Confluence already added its native sell-price row. Keep the Sell Box quote,
+        // formatted as Confluence, and remove the duplicate native row.
+        for (int i = tooltip.size() - 1; i >= 0; i--) {
+            Component line = tooltip.get(i);
+            if (line == rewrittenLine
+                    || !(line.getContents() instanceof TranslatableContents contents)
+                    || !"tooltip.price.sell".equals(contents.getKey())
+                    || contents.getArgs().length != 0) {
+                continue;
+            }
+            tooltip.remove(i);
         }
     }
 
