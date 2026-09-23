@@ -47,7 +47,8 @@ public class BridgeMixinPlugin implements IMixinConfigPlugin {
                     && ConfluenceSupport.modPresent("qshop_sellbox", ConfluenceSupport.SELLBOX_PROBE)
                     && ConfluenceSupport.modPresent("qshop", ConfluenceSupport.QSHOP_PROBE);
         }
-        if (mixinClassName.endsWith(".SellBoxPricesMixin")) {
+        if (mixinClassName.endsWith(".SellBoxPricesMixin")
+                || mixinClassName.endsWith(".SellBoxSalePriceMixin")) {
             return ConfluenceSupport.modPresent("confluence", ConfluenceSupport.CONFLUENCE_PROBE)
                     && ConfluenceSupport.modPresent("qshop_sellbox", ConfluenceSupport.SELLBOX_PROBE)
                     && ConfluenceSupport.modPresent("qshop", ConfluenceSupport.QSHOP_PROBE);

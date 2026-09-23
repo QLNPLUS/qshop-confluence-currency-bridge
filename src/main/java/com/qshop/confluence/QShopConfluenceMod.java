@@ -65,6 +65,10 @@ public class QShopConfluenceMod {
         checkTarget("com.qshop.api.CurrencyService");
         if (ConfluenceSupport.sellboxPresent()) {
             checkTarget("com.qshop.sellbox.PriceQuote");
+            if (ConfluenceSupport.isLoaded()) {
+                checkTarget("com.qshop.sellbox.SellBoxPrices");
+                checkTarget("com.qshop.sellbox.SellBoxSaleService");
+            }
         }
     }
 

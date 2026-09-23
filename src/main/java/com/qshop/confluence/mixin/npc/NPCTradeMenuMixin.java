@@ -3,6 +3,7 @@ package com.qshop.confluence.mixin.npc;
 import com.qshop.confluence.BridgeConfig;
 import com.qshop.confluence.ConfluenceCurrencyBridge;
 import com.qshop.confluence.ConfluenceCurrencyFormat;
+import com.qshop.confluence.ConfluenceSellBoxPrices;
 import com.qshop.sellbox.PriceQuote;
 import com.qshop.sellbox.SellBoxPrices;
 import net.minecraft.server.level.ServerPlayer;
@@ -105,7 +106,8 @@ public abstract class NPCTradeMenuMixin {
             }
 
             ItemStack pricedStack = stack.copyWithCount(remainingCount);
-            PriceQuote quote = SellBoxPrices.resolve(pricedStack);
+            PriceQuote quote = ConfluenceSellBoxPrices.withNativeFallback(
+                    pricedStack, SellBoxPrices.resolve(pricedStack));
             if (quote == null || !linkedCurrency.equals(quote.currency())) {
                 return;
             }

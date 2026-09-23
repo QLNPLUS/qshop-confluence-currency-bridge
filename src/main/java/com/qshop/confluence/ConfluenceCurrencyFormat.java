@@ -2,6 +2,7 @@ package com.qshop.confluence;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
 
 /**
  * Confluence 面额文本。
@@ -70,6 +71,28 @@ public final class ConfluenceCurrencyFormat {
         if (first) {
             // 总额为 0：只显示"0 铜币"
             result.append(Component.literal("0 ")).append(Component.translatable(UNIT_KEYS[3]));
+        }
+        return result;
+    }
+
+    /** Formats a sell-price line exactly like Confluence's tooltip price components. */
+    public static Component formatSellPrice(long copper) {
+        long[] values = {COPPER_PER_PLATINUM, COPPER_PER_GOLD, COPPER_PER_SILVER, 1L};
+        String[] keys = {
+                "tooltip.price.platinum", "tooltip.price.gold",
+                "tooltip.price.silver", "tooltip.price.copper"
+        };
+        int[] colors = {-4_996_668, -3_891_380, -4_532_777, -3_837_899};
+        MutableComponent result = Component.empty();
+        long remaining = Math.max(0L, copper);
+        for (int index = 0; index < values.length; index++) {
+            long count = remaining / values[index];
+            remaining %= values[index];
+            if (count > 0L) {
+                Style style = Style.EMPTY.withColor(colors[index]);
+                result.append(Component.literal(count + " ").withStyle(style))
+                        .append(Component.translatable(keys[index]).withStyle(style));
+            }
         }
         return result;
     }
