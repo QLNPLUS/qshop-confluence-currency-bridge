@@ -252,7 +252,7 @@ public final class ConfluenceMoney {
         if (item == null) {
             return denomination == 0 ? FALLBACK_PLATINUM_STACK : 100;
         }
-        int max = item.getMaxStackSize();
+        int max = new ItemStack(item).getMaxStackSize();
         return Math.max(1, denomination == 0 ? Math.min(FALLBACK_PLATINUM_STACK, max) : Math.min(100, max));
     }
 

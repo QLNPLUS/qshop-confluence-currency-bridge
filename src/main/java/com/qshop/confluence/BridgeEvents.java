@@ -80,7 +80,7 @@ public final class BridgeEvents {
 
     @SubscribeEvent
     public static void onCurrencyItemPickup(ItemEntityPickupEvent.Post event) {
-        if (event.getEntity() instanceof ServerPlayer player
+        if (event.getPlayer() instanceof ServerPlayer player
                 && ConfluenceMoney.isBridgeCurrencyStack(event.getOriginalStack())) {
             markCurrencyInventoryDirty(player);
         }

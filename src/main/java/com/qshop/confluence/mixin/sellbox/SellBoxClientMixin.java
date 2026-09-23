@@ -6,9 +6,9 @@ import com.qshop.confluence.ConfluenceCurrencyFormat;
 import com.qshop.sellbox.client.SellBoxClient;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.contents.TranslatableContents;
-import net.minecraftforge.event.entity.player.ItemTooltipEvent;
-import org.confluence.mod.util.ClientUtils;
+import net.neoforged.neoforge.event.entity.player.ItemTooltipEvent;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -60,9 +60,30 @@ public abstract class SellBoxClientMixin {
             long copper = ConfluenceCurrencyFormat.toCopper(unitPrice * event.getItemStack().getCount());
             tooltip.set(i, Component.translatable("tooltip.price.sell")
                     .withStyle(ChatFormatting.GRAY)
-                    .append(ClientUtils.formatPrice(copper)));
+                    .append(formatNativePrice(copper)));
             return;
         }
+    }
+
+    /** Matches NeoForge Confluence's ClientUtils.formatPrice(int), with long-range amounts. */
+    private static Component formatNativePrice(long copper) {
+        long[] values = {1_000_000L, 10_000L, 100L, 1L};
+        String[] keys = {
+                "tooltip.price.platinum", "tooltip.price.gold",
+                "tooltip.price.silver", "tooltip.price.copper"
+        };
+        int[] colors = {-4_996_668, -3_891_380, -4_532_777, -3_837_899};
+        MutableComponent result = Component.empty();
+        long remaining = Math.max(0L, copper);
+        for (int index = 0; index < values.length; index++) {
+            long count = remaining / values[index];
+            remaining %= values[index];
+            if (count > 0L) {
+                result.append(Component.literal(count + " ").withColor(colors[index]))
+                        .append(Component.translatable(keys[index]).withColor(colors[index]));
+            }
+        }
+        return result;
     }
 
     private static Double parsePrice(Object price) {

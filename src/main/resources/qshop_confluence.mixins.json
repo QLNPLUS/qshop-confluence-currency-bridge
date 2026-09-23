@@ -10,8 +10,7 @@
     "sellbox.PriceQuoteMixin",
     "sellbox.SellBoxSaleServiceMixin",
     "sellbox.SellBoxEventsMixin",
-    "npc.NPCTradeMenuMixin",
-    "npc.NPCTradeBuybackAccessor",
+    "npc.SellTradeMixin",
     "inventory.AbstractContainerMenuMixin"
   ],
   "client": [
