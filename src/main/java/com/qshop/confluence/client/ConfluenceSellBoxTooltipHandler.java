@@ -3,10 +3,13 @@ package com.qshop.confluence.client;
 import com.qshop.confluence.BridgeConfig;
 import com.qshop.confluence.ConfluenceCurrencyBridge;
 import com.qshop.confluence.ConfluenceCurrencyFormat;
+import com.qshop.confluence.ConfluenceSellBoxPrices;
 import com.qshop.confluence.QShopConfluenceMod;
+import com.qshop.sellbox.PriceQuote;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
+import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.event.entity.player.ItemTooltipEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
@@ -30,7 +33,7 @@ public final class ConfluenceSellBoxTooltipHandler {
 
         List<Component> tooltip = event.getToolTip();
         if (BridgeConfig.sellboxPriceFormat()) {
-            Component formattedLine = formatLinkedSellBoxLine(tooltip, event.getItemStack().getCount());
+            Component formattedLine = formatLinkedSellBoxLine(tooltip, event.getItemStack());
             if (formattedLine != null) {
                 removeDuplicateSellLines(tooltip, formattedLine);
                 return;
@@ -40,7 +43,7 @@ public final class ConfluenceSellBoxTooltipHandler {
         keepOneNativeSellLine(tooltip);
     }
 
-    private static Component formatLinkedSellBoxLine(List<Component> tooltip, int stackCount) {
+    private static Component formatLinkedSellBoxLine(List<Component> tooltip, ItemStack stack) {
         for (int index = tooltip.size() - 1; index >= 0; index--) {
             Component line = tooltip.get(index);
             if (!(line.getContents() instanceof TranslatableContents contents)
@@ -58,8 +61,15 @@ public final class ConfluenceSellBoxTooltipHandler {
                 continue;
             }
 
+            PriceQuote adjustedQuote = ConfluenceSellBoxPrices.adjustQuote(stack,
+                    new PriceQuote(unitPrice, BridgeConfig.currencyId()));
+            if (adjustedQuote == null) {
+                tooltip.remove(index);
+                return null;
+            }
+
             // Sell Box pays a unit quote for every item in the stack.
-            long copper = ConfluenceCurrencyFormat.toCopper(unitPrice * stackCount);
+            long copper = ConfluenceCurrencyFormat.toCopper(adjustedQuote.price() * stack.getCount());
             Component formatted = Component.translatable("tooltip.price.sell")
                     .withStyle(ChatFormatting.GRAY)
                     .append(ConfluenceCurrencyFormat.formatSellPrice(copper));
