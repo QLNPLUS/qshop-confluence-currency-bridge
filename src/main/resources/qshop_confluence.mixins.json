@@ -8,11 +8,11 @@
     "qshop.WalletCapabilityMixin",
     "qshop.CurrencyServiceMixin",
     "sellbox.PriceQuoteMixin",
-    "sellbox.SellBoxPricesMixin",
     "sellbox.SellBoxSalePriceMixin",
     "sellbox.SellBoxSaleServiceMixin",
     "sellbox.SellBoxEventsMixin",
     "npc.SellTradeMixin",
+    "npc.PrefixUtilsMixin",
     "inventory.AbstractContainerMenuMixin"
   ],
   "client": [
