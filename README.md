@@ -1,82 +1,40 @@
 # QShop Confluence Currency Bridge
 
-把 [QShop](https://github.com/) 的一个货币 id 绑定到 [Confluence: Otherworld](https://www.curseforge.com/minecraft/mc-mods/confluence)
-的钱币系统上。绑定之后：
+把一个 [QShop](https://github.com/QLNPLUS/Q-shop) 货币 ID 连接到 [Confluence: Otherworld](https://www.curseforge.com/minecraft/mc-mods/confluence) 的钱币系统。
 
-- **实时读取**：QShop 读该货币余额时，直接返回玩家身上 Confluence 的钱
-  （背包钱币 + 钱币栏 + 存钱罐，存钱罐可用配置关掉）；
-- **实时写回**：QShop 交易扣款/进账直接增删玩家身上的钱币，不和 QShop 钱包做镜像，
-  所以不存在"两边对不上"的中间态；
-- **价格格式**：出售箱显示该货币的价格时改用 Confluence 面额文本
-  （`1234567` → `1 铂金币 23 金币 45 银币 67 铜币`），出售/补发的提示消息同样处理。
+## 功能
 
-本模组**不修改 QShop 源码**，通过 Mixin 接管 QShop 唯一的钱包入口
-`WalletCapability.get(Player)`，因此交易、指令、FTB 任务、KubeJS、商店界面同步
-这些路径全部自动生效。
+- **统一余额**：QShop 交易、指令、任务和脚本读写同一个余额。玩家携带的钱币计入余额，存钱罐是否计入可配置。
+- **溢出保存在 QShop**：背包和 Confluence 钱币栏装不下时，剩余金额保存在 QShop 钱包；有空间后会重新以钱币形式放回玩家身上。
+- **手动移动自动同步**：玩家拾取、丢弃、使用或在容器中移动钱币时同步余额，并用低频检查兜底。
+- **离线余额同步**：QShop 的离线交易保存在玩家的钱包数据中；玩家再次加入时，与身上的 Confluence 钱币对账。
+- **出售箱格式**：绑定货币的价格及出售提示使用 Confluence 的面额、颜色和文案格式，包含“卖出：”前缀，并按物品堆叠数量计算总价。
+- **NPC 出售**：玩家可向 Confluence NPC 出售由 QShop Sell Box 定价、且货币为绑定 ID 的物品。
 
-## 环境要求
+本模组不修改 QShop 源码，通过 QShop 钱包入口接入余额读写。
 
-| 组件 | 要求 | 说明 |
-|---|---|---|
-| Minecraft / 加载器 | Forge 1.20.1 或 NeoForge 1.21.1 | 两个分支各自独立 |
-| QShop | ≥ 1.8.0 | 硬依赖 |
-| Confluence: Otherworld | ≥ 1.2.0 | 缺失时模组仍能加载，但绑定不生效 |
-| QShop Sell Box | ≥ 1.5.0 | 可选；缺失时只有价格格式功能关闭 |
+## 版本和依赖
 
-## 配置
+| Minecraft | 加载器 | QShop | Confluence: Otherworld | QShop Sell Box |
+|---|---|---|---|---|
+| 1.20.1 | Forge | 1.8.0 或更新 | 1.2.0 或更新 | 1.5.0 或更新，可选 |
+| 1.21.1 | NeoForge | 1.8.0 或更新 | 1.2.0 或更新 | 1.5.0 或更新，可选 |
 
-`config/qshop-confluence-common.toml`：
+QShop 是必需依赖。Confluence 缺失时桥接功能不启用；Sell Box 缺失时出售箱价格显示和 NPC 定价出售功能不启用。
 
-| 键 | 默认 | 说明 |
-|---|---|---|
-| `bridge.currencyId` | `coins` | 绑定到 Confluence 钱币的 QShop 货币 id |
-| `bridge.includePiggyBank` | `true` | 余额是否包含存钱罐里的钱 |
-| `bridge.offlinePayout` | `true` | 玩家离线时记账，登录时以钱币补发 |
-| `bridge.skipDeathRetention` | `true` | 忽略 QShop 死亡扣款对该货币的作用 |
-| `bridge.autoCreateCurrency` | `true` | 货币表里没有该 id 时自动创建条目 |
-| `bridge.autoCreateCurrencyName` | `钱币` | 自动创建时使用的显示名 |
-| `sellbox.confluencePriceFormat` | `true` | 出售箱用 Confluence 面额显示价格 |
+## 配置和使用
 
-## 使用
+在 `config/qshop-confluence-common.toml` 中设置 `bridge.currencyId`，使它与商店商品、出售箱价格规则使用的 QShop 货币 ID 一致。默认 ID 是 `coins`。`bridge.includePiggyBank` 控制是否把存钱罐余额纳入总余额；`sellbox.confluencePriceFormat` 控制出售箱的 Confluence 价格格式。
 
-1. 把 `currencyId` 设成你想绑定的货币 id（默认 `coins`）。
-2. 在商店编辑界面里，把商品的价格货币选成同一个 id。
-3. 出售箱的 `defaultCurrency` / 价格规则的货币字段填同一个 id。
+如果货币表中没有该 ID，默认配置会自动创建条目。可使用 `/qshopconfluence status` 查看绑定状态和余额；管理员可用 `/qshopconfluence set <数量>` 设置余额。
 
-自检：`/qshopconfluence status` 会同时打印 Confluence 身上的钱和 QShop 读到的余额，
-两者一致即绑定生效。`/qshopconfluence set <数量>`（需要 OP）可以直接设定余额。
+## 说明
 
-## 已知边界
+- 绑定货币的总额由 QShop 钱包保存，Confluence 钱币是可携带部分；请勿把同一个货币 ID 同时当作独立的普通 QShop 货币使用。
+- Confluence 钱币会参与自身死亡掉落。为了避免 QShop 再次扣款，桥接货币默认忽略 QShop 的死亡扣币设置。
+- QShop 价格允许小数，Confluence 钱币以整铜币表示；不足一铜币的余量保留在 QShop 钱包中。
+- NeoForge 1.21.1 与 Forge 1.20.1 分别维护在同名版本分支中。
 
-- **Confluence 的钱是物品，不是钱包数据。** 玩家离线时没有实体可以增删钱币，
-  所以离线入账（例如出售箱的离线收益）会先记在服务器账面里，登录时再以钱币补发；
-  离线期间 `CurrencyService.getBalance(server, uuid, id)` 读到的也只是这份账面。
-- **死亡扣款默认被忽略。** Confluence 自己会让玩家死亡掉落钱币，
-  如果 QShop 的 `death.loseCurrencyOnDeath` 同时生效就会扣两次，
-  所以绑定货币默认跳过 QShop 的死亡留存规则（`skipDeathRetention=false` 可改回）。
-- **价格是 double，Confluence 只能整铜币。** 整数部分落到钱币上，
-  `[0,1)` 的小数余量存在 QShop 钱包里继续累积，不会因为向下取整而丢失。
-- 只有**一个**货币 id 能被绑定；绑定货币 id 不要同时再当普通 QShop 钱包货币用。
+## 许可证
 
-## 构建
-
-```powershell
-# 先构建兄弟项目
-cd ..\q_shop\forge-1.20.1        ; .\gradlew.bat build
-cd ..\q_shop_sellbox\forge-1.20.1 ; .\gradlew.bat build
-
-# 再构建本模组
-cd ..\..\confluence_currency_combat
-.\gradlew.bat build
-```
-
-冒烟测试（带 Confluence 全套前置的开发服务器）：
-
-```powershell
-.\tools\fetch-dev-runtime.ps1                     # 下载没有 Maven 坐标的 MesdagPortLib
-.\gradlew.bat runServer -Pwith_confluence_runtime=true
-```
-
-## 许可
-
-ARR（保留所有权利）。
+ARR（All Rights Reserved，保留所有权利）。

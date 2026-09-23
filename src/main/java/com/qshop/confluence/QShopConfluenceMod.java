@@ -14,8 +14,9 @@ import org.slf4j.Logger;
  *
  * <p>把一个 QShop 货币 id 绑定到 Confluence 的钱币系统上：</p>
  * <ul>
- *   <li>读取余额时实时取 Confluence 的钱（背包钱币 + 钱币栏 + 存钱罐）；</li>
- *   <li>交易扣款/进账直接增删玩家身上的钱币；</li>
+ *   <li>QShop 保存绑定货币的总余额，背包可容纳的部分显示为 Confluence 钱币；</li>
+ *   <li>钱币超出当前背包容量的部分作为 QShop 储备，离线交易也走同一总账；</li>
+ *   <li>钱币相关背包操作后同步到 QShop 总余额，并定期兜底检查；</li>
  *   <li>出售箱显示该货币的价格时改用 Confluence 面额格式。</li>
  * </ul>
  *

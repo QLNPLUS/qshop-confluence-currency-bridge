@@ -14,7 +14,7 @@ public final class BridgeConfig {
 
     private static final ForgeConfigSpec.ConfigValue<String> CURRENCY_ID;
     private static final ForgeConfigSpec.BooleanValue INCLUDE_PIGGY_BANK;
-    private static final ForgeConfigSpec.BooleanValue OFFLINE_PAYOUT;
+    private static final ForgeConfigSpec.BooleanValue LEGACY_OFFLINE_PAYOUT;
     private static final ForgeConfigSpec.BooleanValue SKIP_DEATH_RETENTION;
     private static final ForgeConfigSpec.BooleanValue SELLBOX_PRICE_FORMAT;
     private static final ForgeConfigSpec.BooleanValue AUTO_CREATE_CURRENCY;
@@ -22,7 +22,6 @@ public final class BridgeConfig {
 
     private static volatile String currencyId;
     private static volatile Boolean includePiggyBank;
-    private static volatile Boolean offlinePayout;
     private static volatile Boolean skipDeathRetention;
     private static volatile Boolean sellboxPriceFormat;
     private static volatile Boolean autoCreateCurrency;
@@ -48,10 +47,9 @@ public final class BridgeConfig {
                         "Whether the balance includes money stored in the piggy bank.")
                 .define("includePiggyBank", true);
 
-        OFFLINE_PAYOUT = builder
-                .comment("玩家离线时（例如出售箱离线收益）记账，登录时以钱币形式补发。",
-                        "关闭时离线入账会被丢弃。",
-                        "Queue bound-currency earnings for offline players and pay them as coins on login.")
+        LEGACY_OFFLINE_PAYOUT = builder
+                .comment("旧版本配置项，现已不再使用。离线余额由 QShop 钱包直接保存，登录时自动同步。",
+                        "Deprecated compatibility option; offline balances now use the persisted QShop wallet.")
                 .define("offlinePayout", true);
 
         SKIP_DEATH_RETENTION = builder
@@ -77,8 +75,8 @@ public final class BridgeConfig {
 
         SELLBOX_PRICE_FORMAT = builder
                 .comment("出售箱显示该绑定货币的价格时，改用 Confluence 面额格式",
-                        "（例如 1234567 铜 → 1 铂金币 23 金币 45 银币 67 铜币）。",
-                        "Show bound-currency prices in the sell box using Confluence coin denominations.")
+                        "使用 Confluence 原生币种颜色与格式（例如 1 铂 23 金 45 银 67 铜）。",
+                        "Use Confluence's native denomination labels, colors and price formatting.")
                 .define("confluencePriceFormat", true);
 
         builder.pop();
@@ -93,7 +91,6 @@ public final class BridgeConfig {
     public static void invalidate() {
         currencyId = null;
         includePiggyBank = null;
-        offlinePayout = null;
         skipDeathRetention = null;
         sellboxPriceFormat = null;
         autoCreateCurrency = null;
@@ -117,15 +114,6 @@ public final class BridgeConfig {
         if (cached == null) {
             cached = read(INCLUDE_PIGGY_BANK, Boolean.TRUE);
             includePiggyBank = cached;
-        }
-        return cached;
-    }
-
-    public static boolean offlinePayout() {
-        Boolean cached = offlinePayout;
-        if (cached == null) {
-            cached = read(OFFLINE_PAYOUT, Boolean.TRUE);
-            offlinePayout = cached;
         }
         return cached;
     }

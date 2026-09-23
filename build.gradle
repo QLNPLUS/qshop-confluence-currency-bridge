@@ -114,6 +114,7 @@ dependencies {
 
 // ForgeGradle 6 自带的 Mixin 支持不通过 mixin {} 扩展暴露，这里直接配置注解处理器。
 def refmapFile = layout.buildDirectory.file("classes/java/main/${mod_id}.refmap.json")
+def clickedTarget = 'Lnet/minecraft/world/inventory/AbstractContainerMenu;m_150399_(IILnet/minecraft/world/inventory/ClickType;Lnet/minecraft/world/entity/player/Player;)V'
 tasks.named('compileJava', JavaCompile).configure {
     options.encoding = 'UTF-8'
     options.compilerArgs += [
@@ -125,8 +126,7 @@ tasks.named('compileJava', JavaCompile).configure {
 }
 
 // 注解处理器在没有 MixinGradle 的情况下拿不到 obf→SRG 映射表，只能生成空 refmap。
-// 我们只有两处注入点指向原版方法（出售箱聊天消息里的 Component#translatable），
-// 这里按 Confluence 自己的做法补上这两条 searge 映射。
+// 这里手工补入出售箱消息的 Component#translatable，以及容器点击注入所需的 searge 映射。
 // Component#translatable(String, Object[]) 的 SRG 名 m_237110_ 来自
 // build/createMcpToSrg/output.tsrg，可用 -Pprint_translatable_srg=true 复核。
 tasks.register('patchRefmap') {
@@ -135,6 +135,10 @@ tasks.register('patchRefmap') {
     def entries = [
             'com/qshop/confluence/mixin/sellbox/SellBoxSaleServiceMixin': ['qshop_confluence$soldMessage': target],
             'com/qshop/confluence/mixin/sellbox/SellBoxEventsMixin'    : ['qshop_confluence$syncedMessage': target],
+            'com/qshop/confluence/mixin/inventory/AbstractContainerMenuMixin': [
+                    'clicked(IILnet/minecraft/world/inventory/ClickType;Lnet/minecraft/world/entity/player/Player;)V': clickedTarget,
+                    'clicked': clickedTarget
+            ],
     ]
     doLast {
         def file = refmapFile.get().asFile

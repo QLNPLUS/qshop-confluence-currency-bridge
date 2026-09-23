@@ -9,10 +9,10 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 离线玩家的绑定货币账面。
+ * 旧版本离线补发账面，仅保留用于迁移已有存档。
  *
- * <p>Confluence 的钱是物品，玩家离线时没有实体可以增删钱币，
- * 所以出售箱这类"离线收益"先记在这里，玩家登录时再以钱币形式补发。</p>
+ * <p>新版本会把总余额写入 QShop 玩家钱包，因此离线存取款直接由 QShop
+ * 的 UUID API 持久化。此类只读取旧版本留下的待补发金额。</p>
  */
 public class PendingMoney extends SavedData {
 

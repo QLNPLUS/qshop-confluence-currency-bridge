@@ -2,7 +2,6 @@ package com.qshop.confluence.mixin.sellbox;
 
 import com.qshop.confluence.BridgeConfig;
 import com.qshop.confluence.ConfluenceCurrencyBridge;
-import com.qshop.confluence.ConfluenceCurrencyFormat;
 import com.qshop.sellbox.PriceQuote;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -12,9 +11,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 /**
  * 出售箱的物品牌价格行。
  *
- * <p>{@code PriceQuote#formattedPrice()} 只返回数字字符串，界面把它和货币名拼成
- * “售价: %s %s”。绑定货币直接在这里换成 Confluence 面额文本，
- * 货币名由 {@link SellBoxClientMixin} 置空，避免重复。</p>
+ * <p>{@code PriceQuote#formattedPrice()} 只返回数字字符串。这里保留绑定货币的未舍入单价，
+ * 让客户端先乘物品堆叠数量，再统一换算成铜币并交给 Confluence 自己的
+ * {@code ClientUtils.formatPrice} 生成 tooltip 组件。</p>
  */
 @Mixin(value = PriceQuote.class, remap = false)
 public abstract class PriceQuoteMixin {
@@ -28,6 +27,6 @@ public abstract class PriceQuoteMixin {
         if (!ConfluenceCurrencyBridge.bound(self.currency())) {
             return;
         }
-        cir.setReturnValue(ConfluenceCurrencyFormat.toPlainString(self.price()));
+        cir.setReturnValue(Double.toString(self.price()));
     }
 }
