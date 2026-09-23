@@ -3,8 +3,8 @@ package com.qshop.confluence.mixin.npc;
 import com.qshop.confluence.BridgeConfig;
 import com.qshop.confluence.ConfluenceCurrencyBridge;
 import com.qshop.confluence.ConfluenceCurrencyFormat;
+import com.qshop.confluence.ConfluenceSellBoxPrices;
 import com.qshop.sellbox.PriceQuote;
-import com.qshop.sellbox.SellBoxPrices;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.Slot;
@@ -70,7 +70,7 @@ public abstract class SellTradeMixin {
         if (stack == null || stack.isEmpty() || !ConfluenceCurrencyBridge.active()) {
             return null;
         }
-        PriceQuote quote = SellBoxPrices.resolve(stack);
+        PriceQuote quote = ConfluenceSellBoxPrices.resolveForSale(stack);
         return quote != null && BridgeConfig.currencyId().equals(quote.currency()) ? quote : null;
     }
 

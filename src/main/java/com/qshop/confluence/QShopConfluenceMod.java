@@ -65,6 +65,8 @@ public class QShopConfluenceMod {
             checkTarget("com.qshop.sellbox.PriceQuote");
             if (ConfluenceSupport.isLoaded()) {
                 checkTarget("org.confluence.mod.integration.terra_entity.npc_trade.SellTrade");
+                checkTarget("com.qshop.sellbox.SellBoxPrices");
+                checkTarget("com.qshop.sellbox.SellBoxSaleService");
             }
         }
     }

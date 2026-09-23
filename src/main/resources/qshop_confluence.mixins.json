@@ -9,6 +9,7 @@
     "qshop.CurrencyServiceMixin",
     "sellbox.PriceQuoteMixin",
     "sellbox.SellBoxPricesMixin",
+    "sellbox.SellBoxSalePriceMixin",
     "sellbox.SellBoxSaleServiceMixin",
     "sellbox.SellBoxEventsMixin",
     "npc.SellTradeMixin",

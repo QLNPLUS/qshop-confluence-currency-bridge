@@ -14,16 +14,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class SellBoxPricesMixin {
 
     @Inject(method = "resolve(Lnet/minecraft/world/item/ItemStack;)Lcom/qshop/sellbox/PriceQuote;",
-            at = @At("RETURN"), cancellable = true, remap = false, require = 0)
+            at = @At("RETURN"), cancellable = true, remap = false, require = 1)
     private static void qshop_confluence$adjustServerPrice(ItemStack stack,
             CallbackInfoReturnable<PriceQuote> cir) {
-        cir.setReturnValue(ConfluenceSellBoxPrices.adjust(stack, cir.getReturnValue()));
+        cir.setReturnValue(ConfluenceSellBoxPrices.adjustQuote(stack, cir.getReturnValue()));
     }
 
     @Inject(method = "resolveClient(Lnet/minecraft/world/item/ItemStack;)Lcom/qshop/sellbox/PriceQuote;",
-            at = @At("RETURN"), cancellable = true, remap = false, require = 0)
+            at = @At("RETURN"), cancellable = true, remap = false, require = 1)
     private static void qshop_confluence$adjustClientPrice(ItemStack stack,
             CallbackInfoReturnable<PriceQuote> cir) {
-        cir.setReturnValue(ConfluenceSellBoxPrices.adjust(stack, cir.getReturnValue()));
+        cir.setReturnValue(ConfluenceSellBoxPrices.adjustQuote(stack, cir.getReturnValue()));
     }
 }
