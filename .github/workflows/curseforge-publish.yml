@@ -23,39 +23,96 @@ permissions:
   contents: read
 
 jobs:
+  prepare:
+    name: Select release builds
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+    steps:
+      - name: Select platform and version
+        id: select
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_LOADER: ${{ inputs.loader }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "release" ]]; then
+            case "$RELEASE_TAG" in
+              v*-forge-1.20.1)
+                suffix="-forge-1.20.1"
+                loaders='["forge"]'
+                ;;
+              v*-neoforge-1.21.1)
+                suffix="-neoforge-1.21.1"
+                loaders='["neoforge"]'
+                ;;
+              *)
+                echo "Unsupported release tag: $RELEASE_TAG" >&2
+                exit 1
+                ;;
+            esac
+            version="${RELEASE_TAG#v}"
+            version="${version%"$suffix"}"
+          else
+            version="$INPUT_VERSION"
+            case "$INPUT_LOADER" in
+              both) loaders='["forge","neoforge"]' ;;
+              forge) loaders='["forge"]' ;;
+              neoforge) loaders='["neoforge"]' ;;
+              *) echo "Unsupported loader selection: $INPUT_LOADER" >&2; exit 1 ;;
+            esac
+          fi
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid mod version: $version" >&2
+            exit 1
+          fi
+
+          matrix="$(jq -cn \
+            --argjson loaders "$loaders" \
+            --arg version "$version" \
+            --arg event "$EVENT_NAME" \
+            --arg tag "$RELEASE_TAG" '
+            def forge: {
+              loader: "forge",
+              minecraft: "1.20.1",
+              java: "17",
+              dependency_branch: "forge-1.20.1",
+              qshop_directory: "forge-1.20.1",
+              qshop_artifact: "qshop-forge-1.20.1",
+              sellbox_artifact: "qshop-sellbox-forge-1.20.1",
+              addon_artifact: "qshop-confluence-forge-1.20.1",
+              source_ref: (if $event == "release" then $tag else "forge-1.20.1" end),
+              version: $version
+            };
+            def neoforge: {
+              loader: "neoforge",
+              minecraft: "1.21.1",
+              java: "21",
+              dependency_branch: "neoforge-1.21.1",
+              qshop_directory: "neoforge-1.21.1",
+              qshop_artifact: "qshop-neoforge-1.21.1",
+              sellbox_artifact: "qshop_sellbox-neoforge-1.21.1",
+              addon_artifact: "qshop_confluence-neoforge-1.21.1",
+              source_ref: (if $event == "release" then $tag else "neoforge-1.21.1" end),
+              version: $version
+            };
+            {include: [$loaders[] | if . == "forge" then forge else neoforge end]}
+          ')"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
   publish:
     name: Build and publish ${{ matrix.loader }} ${{ matrix.minecraft }}
-    if: >-
-      (github.event_name == 'release' &&
-       endsWith(github.event.release.tag_name, format('-{0}', matrix.release_suffix))) ||
-      (github.event_name == 'workflow_dispatch' &&
-       (inputs.loader == 'both' || inputs.loader == matrix.loader))
+    needs: prepare
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - loader: forge
-            minecraft: 1.20.1
-            java: '17'
-            release_suffix: forge-1.20.1
-            dependency_branch: forge-1.20.1
-            qshop_directory: forge-1.20.1
-            qshop_artifact: qshop-forge-1.20.1
-            sellbox_artifact: qshop-sellbox-forge-1.20.1
-            addon_artifact: qshop-confluence-forge-1.20.1
-          - loader: neoforge
-            minecraft: 1.21.1
-            java: '21'
-            release_suffix: neoforge-1.21.1
-            dependency_branch: neoforge-1.21.1
-            qshop_directory: neoforge-1.21.1
-            qshop_artifact: qshop-neoforge-1.21.1
-            sellbox_artifact: qshop_sellbox-neoforge-1.21.1
-            addon_artifact: qshop_confluence-neoforge-1.21.1
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     env:
       CURSEFORGE_PROJECT_ID: '1709589'
-      RELEASE_SUFFIX: ${{ matrix.release_suffix }}
       DEPENDENCY_BRANCH: ${{ matrix.dependency_branch }}
       QSHOP_DIRECTORY: ${{ matrix.qshop_directory }}
       QSHOP_ARTIFACT: ${{ matrix.qshop_artifact }}
@@ -63,32 +120,12 @@ jobs:
       ADDON_ARTIFACT: ${{ matrix.addon_artifact }}
       JAVA_VERSION: ${{ matrix.java }}
       MINECRAFT_VERSION: ${{ matrix.minecraft }}
+      MOD_VERSION: ${{ matrix.version }}
     steps:
-      - name: Resolve release tag and mod version
-        id: release_info
-        env:
-          RELEASE_TAG: ${{ github.event.release.tag_name || format('v{0}-{1}', inputs.version, matrix.release_suffix) }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          suffix="-$RELEASE_SUFFIX"
-          if [[ "$RELEASE_TAG" != v*"$suffix" ]]; then
-            echo "Tag '$RELEASE_TAG' must start with v and end with $suffix" >&2
-            exit 1
-          fi
-          version="${RELEASE_TAG#v}"
-          version="${version%"$suffix"}"
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
-            echo "Invalid mod version in tag '$RELEASE_TAG'" >&2
-            exit 1
-          fi
-          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
       - name: Check out this release
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'release' && steps.release_info.outputs.tag || matrix.dependency_branch }}
+          ref: ${{ matrix.source_ref }}
 
       - name: Check out QShop dependency
         uses: actions/checkout@v4
@@ -155,8 +192,6 @@ jobs:
           echo "sellbox_jar=$sellbox_jar" >> "$GITHUB_OUTPUT"
 
       - name: Extract this version's changelog
-        env:
-          MOD_VERSION: ${{ steps.release_info.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
@@ -198,8 +233,6 @@ jobs:
 
       - name: Verify release artifact
         shell: bash
-        env:
-          MOD_VERSION: ${{ steps.release_info.outputs.version }}
         run: |
           set -euo pipefail
           artifact="build/libs/$ADDON_ARTIFACT-$MOD_VERSION.jar"
@@ -214,9 +247,9 @@ jobs:
         with:
           curseforge-id: ${{ env.CURSEFORGE_PROJECT_ID }}
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          files: build/libs/${{ matrix.addon_artifact }}-${{ steps.release_info.outputs.version }}.jar
-          name: QShop Confluence Currency Bridge ${{ steps.release_info.outputs.version }} (${{ matrix.loader }})
-          version: ${{ steps.release_info.outputs.version }}
+          files: build/libs/${{ matrix.addon_artifact }}-${{ matrix.version }}.jar
+          name: QShop Confluence Currency Bridge ${{ matrix.version }} (${{ matrix.loader }})
+          version: ${{ matrix.version }}
           version-type: release
           changelog-file: release-notes.md
           loaders: ${{ matrix.loader }}
