@@ -1,0 +1,224 @@
+name: Publish to CurseForge
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Mod version without the leading v (for example 1.0.0)
+        required: true
+        type: string
+      loader:
+        description: Which loader build to publish
+        required: true
+        default: both
+        type: choice
+        options:
+          - both
+          - forge
+          - neoforge
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Build and publish ${{ matrix.loader }} ${{ matrix.minecraft }}
+    if: >-
+      (github.event_name == 'release' &&
+       endsWith(github.event.release.tag_name, format('-{0}', matrix.release_suffix))) ||
+      (github.event_name == 'workflow_dispatch' &&
+       (inputs.loader == 'both' || inputs.loader == matrix.loader))
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - loader: forge
+            minecraft: 1.20.1
+            java: '17'
+            release_suffix: forge-1.20.1
+            dependency_branch: forge-1.20.1
+            qshop_directory: forge-1.20.1
+            qshop_artifact: qshop-forge-1.20.1
+            sellbox_artifact: qshop-sellbox-forge-1.20.1
+            addon_artifact: qshop-confluence-forge-1.20.1
+          - loader: neoforge
+            minecraft: 1.21.1
+            java: '21'
+            release_suffix: neoforge-1.21.1
+            dependency_branch: neoforge-1.21.1
+            qshop_directory: neoforge-1.21.1
+            qshop_artifact: qshop-neoforge-1.21.1
+            sellbox_artifact: qshop_sellbox-neoforge-1.21.1
+            addon_artifact: qshop_confluence-neoforge-1.21.1
+    env:
+      CURSEFORGE_PROJECT_ID: '1709589'
+      RELEASE_SUFFIX: ${{ matrix.release_suffix }}
+      DEPENDENCY_BRANCH: ${{ matrix.dependency_branch }}
+      QSHOP_DIRECTORY: ${{ matrix.qshop_directory }}
+      QSHOP_ARTIFACT: ${{ matrix.qshop_artifact }}
+      SELLBOX_ARTIFACT: ${{ matrix.sellbox_artifact }}
+      ADDON_ARTIFACT: ${{ matrix.addon_artifact }}
+      JAVA_VERSION: ${{ matrix.java }}
+      MINECRAFT_VERSION: ${{ matrix.minecraft }}
+    steps:
+      - name: Resolve release tag and mod version
+        id: release_info
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || format('v{0}-{1}', inputs.version, matrix.release_suffix) }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          suffix="-$RELEASE_SUFFIX"
+          if [[ "$RELEASE_TAG" != v*"$suffix" ]]; then
+            echo "Tag '$RELEASE_TAG' must start with v and end with $suffix" >&2
+            exit 1
+          fi
+          version="${RELEASE_TAG#v}"
+          version="${version%"$suffix"}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid mod version in tag '$RELEASE_TAG'" >&2
+            exit 1
+          fi
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check out this release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release_info.outputs.tag }}
+
+      - name: Check out QShop dependency
+        uses: actions/checkout@v4
+        with:
+          repository: QLNPLUS/Q-shop
+          ref: ${{ env.DEPENDENCY_BRANCH }}
+          path: dependencies/q_shop
+
+      - name: Check out QShop Sell Box dependency
+        uses: actions/checkout@v4
+        with:
+          repository: QLNPLUS/Q-shop-sellbox
+          ref: ${{ env.DEPENDENCY_BRANCH }}
+          path: dependencies/q_shop_sellbox
+
+      - name: Set up Java ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build sibling mod dependencies
+        id: dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Local gradle.properties files pin Windows JDK paths; CI uses setup-java above.
+          for properties_file in \
+            gradle.properties \
+            "dependencies/q_shop/$QSHOP_DIRECTORY/gradle.properties" \
+            "dependencies/q_shop_sellbox/$QSHOP_DIRECTORY/gradle.properties"; do
+            if [[ -f "$properties_file" ]]; then
+              sed -i '/^org\.gradle\.java\.home=/d' "$properties_file"
+            fi
+          done
+
+          (
+            cd "dependencies/q_shop/$QSHOP_DIRECTORY"
+            ./gradlew --no-daemon build
+          )
+          qshop_jar="$(find "$GITHUB_WORKSPACE/dependencies/q_shop/$QSHOP_DIRECTORY/build/libs" \
+            -maxdepth 1 -type f -name "$QSHOP_ARTIFACT-*.jar" \
+            ! -name '*-sources.jar' ! -name '*-javadoc.jar' -print -quit)"
+          if [[ -z "$qshop_jar" ]]; then
+            echo "QShop build did not produce $QSHOP_ARTIFACT-*.jar" >&2
+            exit 1
+          fi
+
+          (
+            cd "dependencies/q_shop_sellbox/$QSHOP_DIRECTORY"
+            ./gradlew --no-daemon build -Pqshop_jar="$qshop_jar"
+          )
+          sellbox_jar="$(find "$GITHUB_WORKSPACE/dependencies/q_shop_sellbox/$QSHOP_DIRECTORY/build/libs" \
+            -maxdepth 1 -type f -name "$SELLBOX_ARTIFACT-*.jar" \
+            ! -name '*-sources.jar' ! -name '*-javadoc.jar' -print -quit)"
+          if [[ -z "$sellbox_jar" ]]; then
+            echo "QShop Sell Box build did not produce $SELLBOX_ARTIFACT-*.jar" >&2
+            exit 1
+          fi
+          echo "qshop_jar=$qshop_jar" >> "$GITHUB_OUTPUT"
+          echo "sellbox_jar=$sellbox_jar" >> "$GITHUB_OUTPUT"
+
+      - name: Extract this version's changelog
+        env:
+          MOD_VERSION: ${{ steps.release_info.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import re
+          import sys
+          from pathlib import Path
+
+          version = os.environ["MOD_VERSION"]
+          heading = re.compile(r"^##\s+\[?" + re.escape(version) + r"\]?(?:\s|$)")
+          lines = Path("CHANGELOG.md").read_text(encoding="utf-8").splitlines()
+          active = False
+          section = []
+          for line in lines:
+              if line.startswith("## "):
+                  if active:
+                      break
+                  if heading.match(line):
+                      active = True
+                      continue
+              if active:
+                  section.append(line)
+
+          changelog = "\n".join(section).strip()
+          if not active or not changelog:
+              print(f"CHANGELOG.md has no non-empty section for {version}", file=sys.stderr)
+              sys.exit(1)
+          Path("release-notes.md").write_text(changelog + "\n", encoding="utf-8")
+          PY
+
+      - name: Build mod
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon build \
+            -Pqshop_jar='${{ steps.dependencies.outputs.qshop_jar }}' \
+            -Psellbox_jar='${{ steps.dependencies.outputs.sellbox_jar }}'
+
+      - name: Verify release artifact
+        shell: bash
+        env:
+          MOD_VERSION: ${{ steps.release_info.outputs.version }}
+        run: |
+          set -euo pipefail
+          artifact="build/libs/$ADDON_ARTIFACT-$MOD_VERSION.jar"
+          if [[ ! -s "$artifact" ]]; then
+            echo "Expected release artifact not found: $artifact" >&2
+            exit 1
+          fi
+          echo "Release artifact ready: $artifact"
+
+      - name: Publish to CurseForge
+        uses: Kira-NT/mc-publish@v3
+        with:
+          curseforge-id: ${{ env.CURSEFORGE_PROJECT_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          files: build/libs/${{ matrix.addon_artifact }}-${{ steps.release_info.outputs.version }}.jar
+          name: QShop Confluence Currency Bridge ${{ steps.release_info.outputs.version }} (${{ matrix.loader }})
+          version: ${{ steps.release_info.outputs.version }}
+          version-type: release
+          changelog-file: release-notes.md
+          loaders: ${{ matrix.loader }}
+          game-versions: ${{ matrix.minecraft }}
+          java: ${{ matrix.java }}
