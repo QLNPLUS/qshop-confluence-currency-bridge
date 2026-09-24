@@ -88,7 +88,7 @@ jobs:
       - name: Check out this release
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.release_info.outputs.tag }}
+          ref: ${{ github.event_name == 'release' && steps.release_info.outputs.tag || matrix.dependency_branch }}
 
       - name: Check out QShop dependency
         uses: actions/checkout@v4
