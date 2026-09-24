@@ -170,7 +170,7 @@ jobs:
 
           (
             cd "dependencies/q_shop/$QSHOP_DIRECTORY"
-            ./gradlew --no-daemon build
+            bash ./gradlew --no-daemon build
           )
           qshop_jar="$(find "$GITHUB_WORKSPACE/dependencies/q_shop/$QSHOP_DIRECTORY/build/libs" \
             -maxdepth 1 -type f -name "$QSHOP_ARTIFACT-*.jar" \
@@ -208,7 +208,7 @@ jobs:
 
           (
             cd "dependencies/q_shop_sellbox/$QSHOP_DIRECTORY"
-            ./gradlew --no-daemon build -Pqshop_jar="$qshop_jar"
+            bash ./gradlew --no-daemon build -Pqshop_jar="$qshop_jar"
           )
           sellbox_jar="$(find "$GITHUB_WORKSPACE/dependencies/q_shop_sellbox/$QSHOP_DIRECTORY/build/libs" \
             -maxdepth 1 -type f -name "$SELLBOX_ARTIFACT-*.jar" \
@@ -256,7 +256,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ./gradlew --no-daemon build \
+          bash ./gradlew --no-daemon build \
             -Pqshop_jar='${{ steps.dependencies.outputs.qshop_jar }}' \
             -Psellbox_jar='${{ steps.dependencies.outputs.sellbox_jar }}'
 
