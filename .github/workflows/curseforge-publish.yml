@@ -81,6 +81,7 @@ jobs:
               minecraft: "1.20.1",
               java: "17",
               dependency_branch: "forge-1.20.1",
+              qshop_ref: "master",
               qshop_directory: "forge-1.20.1",
               qshop_artifact: "qshop-forge-1.20.1",
               sellbox_artifact: "qshop-sellbox-forge-1.20.1",
@@ -93,6 +94,7 @@ jobs:
               minecraft: "1.21.1",
               java: "21",
               dependency_branch: "neoforge-1.21.1",
+              qshop_ref: "neoforge-1.21.1",
               qshop_directory: "neoforge-1.21.1",
               qshop_artifact: "qshop-neoforge-1.21.1",
               sellbox_artifact: "qshop_sellbox-neoforge-1.21.1",
@@ -114,6 +116,7 @@ jobs:
     env:
       CURSEFORGE_PROJECT_ID: '1709589'
       DEPENDENCY_BRANCH: ${{ matrix.dependency_branch }}
+      QSHOP_REF: ${{ matrix.qshop_ref }}
       QSHOP_DIRECTORY: ${{ matrix.qshop_directory }}
       QSHOP_ARTIFACT: ${{ matrix.qshop_artifact }}
       SELLBOX_ARTIFACT: ${{ matrix.sellbox_artifact }}
@@ -131,15 +134,15 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: QLNPLUS/Q-shop
-          ref: ${{ env.DEPENDENCY_BRANCH }}
-          path: dependencies/q_shop
+          ref: ${{ env.QSHOP_REF }}
+          path: dependencies/q_shop/${{ env.QSHOP_DIRECTORY }}
 
       - name: Check out QShop Sell Box dependency
         uses: actions/checkout@v4
         with:
           repository: QLNPLUS/Q-shop-sellbox
           ref: ${{ env.DEPENDENCY_BRANCH }}
-          path: dependencies/q_shop_sellbox
+          path: dependencies/q_shop_sellbox/${{ env.QSHOP_DIRECTORY }}
 
       - name: Set up Java ${{ matrix.java }}
         uses: actions/setup-java@v4
@@ -176,6 +179,32 @@ jobs:
             echo "QShop build did not produce $QSHOP_ARTIFACT-*.jar" >&2
             exit 1
           fi
+
+          # The public Sell Box release branches still hard-code a QShop 1.4.0
+          # jar path. Repoint that compile-only input to the QShop artifact built here.
+          sellbox_build_file="$GITHUB_WORKSPACE/dependencies/q_shop_sellbox/$QSHOP_DIRECTORY/build.gradle"
+          python3 - "$sellbox_build_file" <<'PY'
+          import sys
+          from pathlib import Path
+
+          build_file = Path(sys.argv[1])
+          source = build_file.read_text(encoding="utf-8")
+          if "findProperty('qshop_jar')" not in source and 'findProperty("qshop_jar")' not in source:
+              lines = source.splitlines()
+              matches = [
+                  index for index, line in enumerate(lines)
+                  if "compileOnly" in line and "files(" in line and "qshop-" in line and ".jar" in line
+              ]
+              if len(matches) != 1:
+                  raise SystemExit(f"Expected one hard-coded QShop compile dependency in {build_file}")
+              index = matches[0]
+              indent = lines[index][:len(lines[index]) - len(lines[index].lstrip())]
+              if "fg.deobf" in lines[index]:
+                  lines[index] = indent + "compileOnly fg.deobf(files(findProperty('qshop_jar')))"
+              else:
+                  lines[index] = indent + "compileOnly files(findProperty('qshop_jar'))"
+              build_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
 
           (
             cd "dependencies/q_shop_sellbox/$QSHOP_DIRECTORY"
