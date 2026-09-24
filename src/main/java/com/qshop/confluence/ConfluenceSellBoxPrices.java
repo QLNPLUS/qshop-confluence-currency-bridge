@@ -64,17 +64,17 @@ public final class ConfluenceSellBoxPrices {
     }
 
     /** Replaces Confluence's native value input with a linked Sell Box quote for Goblin reforging. */
-    public static int reforgeBasePrice(ItemStack stack, int nativeFallback) {
+    public static int reforgeBasePrice(ItemStack stack, int nativePrice) {
         if (stack == null || stack.isEmpty() || !ConfluenceCurrencyBridge.active()) {
-            return nativeFallback;
+            return nativePrice;
         }
         PriceQuote quote = SellBoxPrices.resolve(stack);
         if (!ConfluenceCurrencyBridge.bound(quote == null ? null : quote.currency())) {
-            return nativeFallback;
+            return nativePrice;
         }
         PriceQuote adjusted = adjustQuote(stack, quote);
         if (adjusted == null) {
-            return nativeFallback;
+            return nativePrice;
         }
         long total = ConfluenceCurrencyFormat.toCopper(adjusted.price() * stack.getCount());
         return (int) Math.min(Integer.MAX_VALUE, total);
