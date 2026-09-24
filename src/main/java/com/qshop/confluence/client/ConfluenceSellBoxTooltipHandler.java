@@ -19,8 +19,7 @@ import net.neoforged.neoforge.event.entity.player.ItemTooltipEvent;
 import java.util.List;
 
 /** Final tooltip pass: format linked Sell Box quotes and collapse duplicate native sell rows. */
-@EventBusSubscriber(modid = QShopConfluenceMod.MODID, value = Dist.CLIENT,
-        bus = EventBusSubscriber.Bus.GAME)
+@EventBusSubscriber(modid = QShopConfluenceMod.MODID, value = Dist.CLIENT)
 public final class ConfluenceSellBoxTooltipHandler {
 
     private ConfluenceSellBoxTooltipHandler() {
