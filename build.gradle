@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'com.qshop.confluence'
-version = '1.0.0'
+version = mod_version
 base { archivesName = "qshop-confluence-forge-1.20.1" }
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
