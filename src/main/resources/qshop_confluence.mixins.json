@@ -14,12 +14,12 @@
     "sellbox.SellBoxEventsMixin",
     "npc.NPCTradeMenuMixin",
     "npc.PrefixUtilsMixin",
-    "npc.NPCTradeBuybackAccessor",
+    "npc.NPCTradeBuybackMixin",
     "inventory.AbstractContainerMenuMixin"
   ],
   "client": [
     "sellbox.SellBoxClientMixin",
-    "inventory.AbstractContainerScreenAccessor"
+    "inventory.AbstractContainerScreenMixin"
   ],
   "server": [],
   "injectors": {

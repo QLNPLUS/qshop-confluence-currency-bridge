@@ -5,9 +5,9 @@ import com.qshop.confluence.ConfluenceCurrencyBridge;
 import com.qshop.confluence.ConfluenceCurrencyFormat;
 import com.qshop.confluence.ConfluenceSellBoxPrices;
 import com.qshop.confluence.QShopConfluenceMod;
-import com.qshop.confluence.mixin.inventory.AbstractContainerScreenAccessor;
-import com.qshop.confluence.mixin.npc.NPCTradeBuybackAccessor;
-import com.qshop.confluence.mixin.npc.NPCTradeMenuAccessor;
+import com.qshop.confluence.compat.ContainerScreenAccess;
+import com.qshop.confluence.compat.NPCBuybackAccess;
+import com.qshop.confluence.compat.NPCTradeMenuAccess;
 import com.qshop.sellbox.PriceQuote;
 import com.qshop.sellbox.SellBoxPrices;
 import net.minecraft.ChatFormatting;
@@ -57,7 +57,7 @@ public final class ConfluenceSellBoxTooltipHandler {
 
     /** Shows the amount the currently open NPC menu would pay for this inventory stack. */
     private static boolean formatNpcTradePrice(List<Component> tooltip, ItemStack tooltipStack) {
-        NPCTradeMenuAccessor menu = currentNpcTradeMenu(tooltipStack);
+        NPCTradeMenuAccess menu = currentNpcTradeMenu(tooltipStack);
         if (menu == null) {
             return false;
         }
@@ -87,11 +87,11 @@ public final class ConfluenceSellBoxTooltipHandler {
         return true;
     }
 
-    private static NPCTradeMenuAccessor currentNpcTradeMenu(ItemStack tooltipStack) {
+    private static NPCTradeMenuAccess currentNpcTradeMenu(ItemStack tooltipStack) {
         Minecraft minecraft = Minecraft.getInstance();
         Player player = minecraft.player;
         if (player == null || !(minecraft.screen instanceof AbstractContainerScreen<?> screen)
-                || !(screen instanceof AbstractContainerScreenAccessor screenAccessor)) {
+                || !(screen instanceof ContainerScreenAccess screenAccessor)) {
             return null;
         }
 
@@ -107,19 +107,19 @@ public final class ConfluenceSellBoxTooltipHandler {
             return null;
         }
 
-        return screenAccessor.qshop_confluence$getMenu() instanceof NPCTradeMenuAccessor menu
+        return screenAccessor.qshop_confluence$getMenu() instanceof NPCTradeMenuAccess menu
                 ? menu : null;
     }
 
     /** Mirrors NPCTradeMenuMixin's refund-first and mood-adjusted total calculation. */
-    private static long getNpcSellPrice(NPCTradeMenuAccessor menu, List<Component> tooltip,
+    private static long getNpcSellPrice(NPCTradeMenuAccess menu, List<Component> tooltip,
                                         ItemStack stack) {
         int remainingCount = stack.getCount();
         long refundTotal = 0L;
         List<?> refundablePurchases = menu.qshop_confluence$getRefundablePurchases();
         if (refundablePurchases != null) {
             for (Object entry : refundablePurchases) {
-                if (!(entry instanceof NPCTradeBuybackAccessor buyback)) {
+                if (!(entry instanceof NPCBuybackAccess buyback)) {
                     continue;
                 }
                 ItemStack refundStack = buyback.qshop_confluence$getStack();

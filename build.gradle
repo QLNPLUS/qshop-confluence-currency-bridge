@@ -143,7 +143,7 @@ tasks.register('patchRefmap') {
                     'clicked': clickedTarget
             ],
             // FG3's Mixin AP cannot infer these accessor field mappings for Forge's production names.
-            'com/qshop/confluence/mixin/inventory/AbstractContainerScreenAccessor': [
+            'com/qshop/confluence/mixin/inventory/AbstractContainerScreenMixin': [
                     'menu'       : 'f_97732_:Lnet/minecraft/world/inventory/AbstractContainerMenu;',
                     'hoveredSlot': 'f_97734_:Lnet/minecraft/world/inventory/Slot;'
             ],

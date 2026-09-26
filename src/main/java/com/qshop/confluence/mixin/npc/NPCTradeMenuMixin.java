@@ -1,6 +1,8 @@
 package com.qshop.confluence.mixin.npc;
 
 import com.qshop.confluence.BridgeConfig;
+import com.qshop.confluence.compat.NPCBuybackAccess;
+import com.qshop.confluence.compat.NPCTradeMenuAccess;
 import com.qshop.confluence.ConfluenceCurrencyBridge;
 import com.qshop.confluence.ConfluenceCurrencyFormat;
 import com.qshop.confluence.ConfluenceSellBoxPrices;
@@ -28,7 +30,7 @@ import java.util.List;
  * Confluence, QShop, and Sell Box all being present.
  */
 @Mixin(targets = "org.confluence.mod.common.entity.npc.trade.NPCTradeMenu", remap = false)
-public abstract class NPCTradeMenuMixin implements NPCTradeMenuAccessor {
+public abstract class NPCTradeMenuMixin implements NPCTradeMenuAccess {
 
     @Shadow @Final private BaseNPC npc;
     @Shadow @Final private List<?> refundablePurchases;
@@ -101,7 +103,7 @@ public abstract class NPCTradeMenuMixin implements NPCTradeMenuAccessor {
         long refundTotal = 0L;
         try {
             for (Object entry : refundablePurchases) {
-                NPCTradeBuybackAccessor buyback = (NPCTradeBuybackAccessor) entry;
+                NPCBuybackAccess buyback = (NPCBuybackAccess) entry;
                 ItemStack refundStack = buyback.qshop_confluence$getStack();
                 if (!ItemStack.isSameItemSameTags(stack, refundStack)) {
                     continue;
