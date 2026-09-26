@@ -3,5 +3,6 @@
   "qshop_confluence.command.status_header": "QShop x Confluence currency binding (currency id: %s)",
   "qshop_confluence.command.confluence_missing": "Confluence is not installed; the binding is inactive.",
   "qshop_confluence.command.balance": "Confluence money: %s (QShop balance: %s)",
-  "qshop_confluence.command.set": "Bound currency balance set to %s"
+  "qshop_confluence.command.set": "Bound currency balance set to %s",
+  "qshop_confluence.tooltip.npc_sell_price": "Current NPC buyback price: "
 }

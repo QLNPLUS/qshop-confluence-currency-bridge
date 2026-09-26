@@ -72,6 +72,33 @@ public final class ConfluenceSellBoxPrices {
         return nativePrice == 0L ? null : new PriceQuote(nativePrice, BridgeConfig.currencyId());
     }
 
+    /** Returns Confluence's native copper value for the given stack, including its count. */
+    public static long nativeCopperPrice(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) {
+            return 0L;
+        }
+        return Math.max(0L, ValueComponent.getValueLong(stack, 0));
+    }
+
+    /** Reads the active NPC's sell multiplier, matching Confluence's own transaction path. */
+    public static float npcSellPriceMultiplier(Object npc) {
+        try {
+            if (npc == null) {
+                return 1.0F;
+            }
+            Object mood = npc.getClass().getMethod("getMood").invoke(npc);
+            return ((Number) mood.getClass().getMethod("getSellPriceMultiplier").invoke(mood)).floatValue();
+        } catch (ReflectiveOperationException | ClassCastException ignored) {
+            // Keep the price display usable if a Confluence version changes its mood API.
+            return 1.0F;
+        }
+    }
+
+    /** Applies Confluence's exact copper-total rounding step for NPC sell prices. */
+    public static long applyNpcSellPriceMultiplier(long copperTotal, float multiplier) {
+        return (long) ((double) copperTotal * multiplier);
+    }
+
     /** Replaces Confluence's native value input with a linked Sell Box quote for Goblin reforging. */
     public static int reforgeBasePrice(ItemStack stack, int nativePrice) {
         if (stack == null || stack.isEmpty() || !ConfluenceCurrencyBridge.active()) {

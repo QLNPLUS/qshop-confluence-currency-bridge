@@ -18,7 +18,9 @@
     "inventory.AbstractContainerMenuMixin"
   ],
   "client": [
-    "sellbox.SellBoxClientMixin"
+    "sellbox.SellBoxClientMixin",
+    "npc.NPCTradeMenuAccessor",
+    "inventory.AbstractContainerScreenAccessor"
   ],
   "server": [],
   "injectors": {

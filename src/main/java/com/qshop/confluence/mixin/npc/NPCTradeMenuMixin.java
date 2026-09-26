@@ -113,7 +113,8 @@ public abstract class NPCTradeMenuMixin {
             // Match Sell Box payout semantics: aggregate the unit price for the
             // remaining stack first, then convert the total to whole copper coins.
             long copperTotal = ConfluenceCurrencyFormat.toCopper(quote.price() * remainingCount);
-            long npcAdjustedTotal = (long) ((double) copperTotal * qshop_confluence$getSellPriceMultiplier());
+            long npcAdjustedTotal = ConfluenceSellBoxPrices.applyNpcSellPriceMultiplier(
+                    copperTotal, qshop_confluence$getSellPriceMultiplier());
             cir.setReturnValue(Math.addExact(refundTotal, npcAdjustedTotal));
         } catch (ArithmeticException ignored) {
             // Confluence treats an unrepresentable trade total as unsellable.
@@ -122,13 +123,6 @@ public abstract class NPCTradeMenuMixin {
     }
 
     private float qshop_confluence$getSellPriceMultiplier() {
-        try {
-            Object npcObject = npc;
-            Object mood = npcObject.getClass().getMethod("getMood").invoke(npcObject);
-            return ((Number) mood.getClass().getMethod("getSellPriceMultiplier").invoke(mood)).floatValue();
-        } catch (ReflectiveOperationException | ClassCastException ignored) {
-            // Keep the sale available if a Confluence version changes its mood API.
-            return 1.0F;
-        }
+        return ConfluenceSellBoxPrices.npcSellPriceMultiplier(npc);
     }
 }
