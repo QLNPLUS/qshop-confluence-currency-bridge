@@ -179,7 +179,8 @@ public final class ConfluenceSellBoxTooltipHandler {
     private static int findNpcBuybackPriceLine(List<Component> tooltip) {
         for (int index = tooltip.size() - 1; index >= 0; index--) {
             Component line = tooltip.get(index);
-            if (isNpcSellLine(line) || isNativeBuyLine(line) || isSellBoxPriceLine(line)) {
+            if (isNpcSellLine(line) || isNativeBuyLine(line) || isNativeSellLine(line)
+                    || isSellBoxPriceLine(line)) {
                 return index;
             }
         }
@@ -192,7 +193,8 @@ public final class ConfluenceSellBoxTooltipHandler {
             if (line == keep) {
                 continue;
             }
-            if (isNpcSellLine(line) || isNativeBuyLine(line) || isSellBoxPriceLine(line)) {
+            if (isNpcSellLine(line) || isNativeBuyLine(line) || isNativeSellLine(line)
+                    || isSellBoxPriceLine(line)) {
                 tooltip.remove(index);
             }
         }
