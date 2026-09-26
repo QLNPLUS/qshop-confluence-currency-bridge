@@ -46,21 +46,30 @@ public final class ConfluenceSellBoxPrices {
         return new PriceQuote(adjustedPrice, quote.currency());
     }
 
-    /** Uses the native Confluence value only at sale paths that need the fallback. */
-    public static PriceQuote withNativeFallback(ItemStack stack, PriceQuote quote) {
-        if (quote != null) {
-            return adjustQuote(stack, quote);
+    /** Resolves and adjusts one raw QShop quote. Keep SellBoxPrices.resolve itself unmodified. */
+    public static PriceQuote resolveSellBoxQuote(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) {
+            return null;
         }
-        if (stack == null || stack.isEmpty() || !ConfluenceCurrencyBridge.active()) {
-            return quote;
-        }
-        long nativePrice = Math.max(0L, ValueComponent.getValue(stack.copyWithCount(1), 0));
-        return nativePrice == 0L ? null : new PriceQuote(nativePrice, BridgeConfig.currencyId());
+        return adjustQuote(stack, SellBoxPrices.resolve(stack));
     }
 
-    /** Resolves a QShop quote first, then falls back to Confluence's native item resale value. */
+    /** Resolves one QShop quote first, then falls back to Confluence's native resale value. */
     public static PriceQuote resolveForSale(ItemStack stack) {
-        return withNativeFallback(stack, SellBoxPrices.resolve(stack));
+        if (stack == null || stack.isEmpty()) {
+            return null;
+        }
+
+        PriceQuote sellBoxQuote = resolveSellBoxQuote(stack);
+        if (sellBoxQuote != null) {
+            return sellBoxQuote;
+        }
+        if (!ConfluenceCurrencyBridge.active()) {
+            return null;
+        }
+
+        long nativePrice = Math.max(0L, ValueComponent.getValue(stack.copyWithCount(1), 0));
+        return nativePrice == 0L ? null : new PriceQuote(nativePrice, BridgeConfig.currencyId());
     }
 
     /** Replaces Confluence's native value input with a linked Sell Box quote for Goblin reforging. */
@@ -68,15 +77,11 @@ public final class ConfluenceSellBoxPrices {
         if (stack == null || stack.isEmpty() || !ConfluenceCurrencyBridge.active()) {
             return nativePrice;
         }
-        PriceQuote quote = SellBoxPrices.resolve(stack);
+        PriceQuote quote = resolveSellBoxQuote(stack);
         if (!ConfluenceCurrencyBridge.bound(quote == null ? null : quote.currency())) {
             return nativePrice;
         }
-        PriceQuote adjusted = adjustQuote(stack, quote);
-        if (adjusted == null) {
-            return nativePrice;
-        }
-        long total = ConfluenceCurrencyFormat.toCopper(adjusted.price() * stack.getCount());
+        long total = ConfluenceCurrencyFormat.toCopper(quote.price() * stack.getCount());
         return (int) Math.min(Integer.MAX_VALUE, total);
     }
 }

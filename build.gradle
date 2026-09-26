@@ -29,6 +29,9 @@ minecraft {
         }
         client {}
         server {}
+        gameTestServer {
+            property 'forge.enabledGameTestNamespaces', mod_id
+        }
     }
 }
 
@@ -183,6 +186,9 @@ processResources {
 
 jar {
     dependsOn 'patchRefmap'
+    // Functional GameTests and their empty structure are dev-only and should not ship.
+    exclude 'com/qshop/confluence/gametest/**'
+    exclude 'data/qshop_confluence/structures/empty.nbt'
     manifest {
         attributes([
                 'Specification-Title'   : mod_id,

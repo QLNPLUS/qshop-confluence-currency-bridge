@@ -5,7 +5,6 @@ import com.qshop.confluence.ConfluenceCurrencyBridge;
 import com.qshop.confluence.ConfluenceCurrencyFormat;
 import com.qshop.confluence.ConfluenceSellBoxPrices;
 import com.qshop.sellbox.PriceQuote;
-import com.qshop.sellbox.SellBoxPrices;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -106,8 +105,7 @@ public abstract class NPCTradeMenuMixin {
             }
 
             ItemStack pricedStack = stack.copyWithCount(remainingCount);
-            PriceQuote quote = ConfluenceSellBoxPrices.withNativeFallback(
-                    pricedStack, SellBoxPrices.resolve(pricedStack));
+            PriceQuote quote = ConfluenceSellBoxPrices.resolveForSale(pricedStack);
             if (quote == null || !linkedCurrency.equals(quote.currency())) {
                 return;
             }
