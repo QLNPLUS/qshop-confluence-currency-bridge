@@ -4,5 +4,5 @@
   "qshop_confluence.command.confluence_missing": "未检测到 Confluence，绑定未生效。",
   "qshop_confluence.command.balance": "Confluence 钱币: %s（QShop 读到的余额: %s）",
   "qshop_confluence.command.set": "已将绑定货币余额设为 %s",
-  "qshop_confluence.tooltip.npc_sell_price": "当前 NPC 收购价："
+  "qshop_confluence.tooltip.npc_sell_price": "卖出："
 }
