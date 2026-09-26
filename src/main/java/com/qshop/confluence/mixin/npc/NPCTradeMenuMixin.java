@@ -14,6 +14,7 @@ import org.confluence.mod.util.PlayerUtils;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
@@ -27,10 +28,22 @@ import java.util.List;
  * Confluence, QShop, and Sell Box all being present.
  */
 @Mixin(targets = "org.confluence.mod.common.entity.npc.trade.NPCTradeMenu", remap = false)
-public abstract class NPCTradeMenuMixin {
+public abstract class NPCTradeMenuMixin implements NPCTradeMenuAccessor {
 
     @Shadow @Final private BaseNPC npc;
     @Shadow @Final private List<?> refundablePurchases;
+
+    @Override
+    @Unique
+    public Object qshop_confluence$getNpc() {
+        return npc;
+    }
+
+    @Override
+    @Unique
+    public List<?> qshop_confluence$getRefundablePurchases() {
+        return refundablePurchases;
+    }
 
     // Confluence's released Forge jar remaps this AbstractContainerMenu override to
     // m_7648_, while the deobfuscated development runtime exposes quickMoveStack.

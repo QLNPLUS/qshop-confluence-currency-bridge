@@ -142,6 +142,11 @@ tasks.register('patchRefmap') {
                     'clicked(IILnet/minecraft/world/inventory/ClickType;Lnet/minecraft/world/entity/player/Player;)V': clickedTarget,
                     'clicked': clickedTarget
             ],
+            // FG3's Mixin AP cannot infer these accessor field mappings for Forge's production names.
+            'com/qshop/confluence/mixin/inventory/AbstractContainerScreenAccessor': [
+                    'menu'       : 'f_97732_:Lnet/minecraft/world/inventory/AbstractContainerMenu;',
+                    'hoveredSlot': 'f_97734_:Lnet/minecraft/world/inventory/Slot;'
+            ],
     ]
     doLast {
         def file = refmapFile.get().asFile

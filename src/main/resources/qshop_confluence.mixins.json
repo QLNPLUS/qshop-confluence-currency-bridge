@@ -19,7 +19,6 @@
   ],
   "client": [
     "sellbox.SellBoxClientMixin",
-    "npc.NPCTradeMenuAccessor",
     "inventory.AbstractContainerScreenAccessor"
   ],
   "server": [],
