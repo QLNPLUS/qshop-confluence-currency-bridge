@@ -8,17 +8,21 @@ import com.qshop.wallet.WalletCapability;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.EntityItemPickupEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.entity.item.ItemTossEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.event.config.ModConfigEvent;
 import org.slf4j.Logger;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -30,6 +34,7 @@ public final class BridgeEvents {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final int RECONCILE_FALLBACK_TICKS = 100;
     private static final Set<UUID> DIRTY_CURRENCY_PLAYERS = new HashSet<>();
+    private static final Map<UUID, double[]> DEATH_SNAPSHOT = new HashMap<>();
 
     private BridgeEvents() {
     }
@@ -72,9 +77,129 @@ public final class BridgeEvents {
         }
     }
 
+
+    /**
+     * Confluence drops its coins inside {@link LivingDeathEvent}. Running at LOWEST guarantees we
+     * see the inventory after that deduction, and reduces QShop's total by exactly the amount the
+     * coins have lost. Without this hook the balance only catches up on the next inventory scan.
+     *
+     * {@code receiveCanceled = true} keeps the hook alive when another mod prevents the death
+     * (PlayerRevive's bleeding state cancels it at HIGHEST). Confluence registers through PortLib
+     * with {@code receiveCanceled = false}, so a cancelled death drops nothing and this reconcile is
+     * a no-op; a mod that cancels later (LOW/LOWEST, e.g. totem style) would otherwise leave the
+     * already-dropped coins unaccounted for until the next shop interaction.
+     */
+    @SubscribeEvent(priority = EventPriority.HIGH)
+    public static void snapshotCashBeforeCoinDrop(LivingDeathEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player) || !ConfluenceCurrencyBridge.active()) {
+            return;
+        }
+        IWallet wallet = WalletCapability.get(player);
+        if (wallet == null) {
+            return;
+        }
+        // Read the raw total: a reconciling read here would itself apply a stale-mirror phantom credit
+        // before the drop is even measured.
+        IWallet raw = wallet instanceof ConfluenceWallet wrapped ? wrapped.unwrap() : wallet;
+        DEATH_SNAPSHOT.put(player.getUUID(), new double[]{
+                ConfluenceMoney.getCarried(player),
+                raw.getBalance(BridgeConfig.currencyId()),
+                BridgeConfig.includePiggyBank() ? ConfluenceMoney.getPiggyBank(player) : 0L});
+    }
+
+    @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
+    public static void onPlayerDeath(LivingDeathEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player) || !ConfluenceCurrencyBridge.active()) {
+            return;
+        }
+        reconcileAndReport(player, event.isCanceled() ? "死亡被其它模组取消（倒地）" : "死亡",
+                event.isCanceled());
+    }
+
+    /**
+     * Death-preventing mods also finish the kill when a downed player logs out
+     * ({@code PlayerRevive} does this in a HIGHEST {@link PlayerEvent.PlayerLoggedOutEvent} handler),
+     * so the coin drop can land while the player data is about to be written. Reconciling here keeps
+     * the saved wallet in step with the drop instead of resurrecting the money on the next login.
+     */
     @SubscribeEvent
     public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         DIRTY_CURRENCY_PLAYERS.remove(event.getEntity().getUUID());
+        if (event.getEntity() instanceof ServerPlayer player && ConfluenceCurrencyBridge.active()
+                && player.isDeadOrDying()) {
+            reconcileAndReport(player, "登出时被击杀", false);
+        }
+        DEATH_SNAPSHOT.remove(event.getEntity().getUUID());
+    }
+
+    /**
+     * QShop copies the player's wallet during {@link PlayerEvent.Clone}. Reconciling again at LOWEST
+     * (after that copy) makes the respawned player's cash mirror match their empty/kept inventory,
+     * so a death can never leave the pre-death total behind.
+     */
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    public static void onPlayerClone(PlayerEvent.Clone event) {
+        if (event.isWasDeath() && event.getEntity() instanceof ServerPlayer player) {
+            reconcileBoundBalance(player);
+        }
+    }
+
+    private static void reconcileBoundBalance(ServerPlayer player) {
+        if (player == null || !ConfluenceCurrencyBridge.active()) {
+            return;
+        }
+        IWallet wallet = WalletCapability.get(player);
+        if (wallet != null) {
+            wallet.getBalance(BridgeConfig.currencyId());
+        }
+    }
+
+    /** Current canonical total for the bound currency; reading it also performs a reconciliation. */
+    private static double currentTotal(ServerPlayer player) {
+        IWallet wallet = WalletCapability.get(player);
+        return wallet == null ? Double.NaN : wallet.getBalance(BridgeConfig.currencyId());
+    }
+
+    /** Reconciles, then reports the physical/canonical change so a server log can pin down a death. */
+    private static void reconcileAndReport(ServerPlayer player, String cause, boolean alwaysReport) {
+        double[] snapshot = DEATH_SNAPSHOT.remove(player.getUUID());
+        if (snapshot != null) {
+            repairLedgerBaseline(player, snapshot);
+        }
+        long copperBefore = snapshot != null ? (long) snapshot[0] : ConfluenceMoney.getCarried(player);
+        double totalBefore = snapshot != null ? snapshot[1] : currentTotal(player);
+        reconcileBoundBalance(player);
+        long copperAfter = ConfluenceMoney.getCarried(player);
+        double totalAfter = currentTotal(player);
+        if (alwaysReport || copperBefore != copperAfter || Double.compare(totalBefore, totalAfter) != 0) {
+            LOGGER.info("QShop Confluence Bridge: {} {}：携带钱币 {} → {} 铜（掉落 {}），QShop 总额 {} → {}",
+                    player.getName().getString(), cause, copperBefore, copperAfter,
+                    copperBefore - copperAfter, totalBefore, totalAfter);
+        }
+    }
+
+    /**
+     * The drop must be measured against the coins that were really in the slots a moment ago.
+     * If a stale ledger mirror disagrees with that observation, the difference would silently vanish
+     * (no deduction) and the following rebalance would mint the very coins Confluence just dropped.
+     */
+    private static void repairLedgerBaseline(ServerPlayer player, double[] snapshot) {
+        IWallet wallet = WalletCapability.get(player);
+        if (wallet == null) {
+            return;
+        }
+        IWallet raw = wallet instanceof ConfluenceWallet wrapped ? wrapped.unwrap() : wallet;
+        String currencyId = BridgeConfig.currencyId();
+        double cashMirror = raw.getBalance(BridgeWalletData.cashKey(currencyId));
+        if (Double.compare(cashMirror, snapshot[0]) != 0) {
+            LOGGER.info("QShop Confluence Bridge: {} 的钱币镜像 {} 与实际携带 {} 不符，按实际值修正后再对账",
+                    player.getName().getString(), cashMirror, (long) snapshot[0]);
+            raw.setBalance(BridgeWalletData.cashKey(currencyId), snapshot[0]);
+        }
+        double piggyMirror = raw.getBalance(BridgeWalletData.piggyKey(currencyId));
+        if (Double.compare(piggyMirror, snapshot[2]) != 0) {
+            raw.setBalance(BridgeWalletData.piggyKey(currencyId), snapshot[2]);
+        }
     }
 
     /** Queues a player for a balance reconciliation at the end of their current/next tick. */

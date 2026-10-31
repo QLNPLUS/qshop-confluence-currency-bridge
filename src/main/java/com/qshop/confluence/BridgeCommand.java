@@ -58,6 +58,20 @@ public final class BridgeCommand {
         source.sendSuccess(() -> Component.literal("dev: confluenceCopper=" + money
                 + " qshopBalance=" + balance
                 + " piggyBankIncluded=" + BridgeConfig.includePiggyBank()), false);
+        IWallet raw = wallet instanceof ConfluenceWallet wrapped ? wrapped.unwrap() : wallet;
+        double cashMirror = raw.getBalance(BridgeWalletData.cashKey(currencyId));
+        double piggyMirror = raw.getBalance(BridgeWalletData.piggyKey(currencyId));
+        double version = raw.getBalance(BridgeWalletData.versionKey(currencyId));
+        source.sendSuccess(() -> Component.literal("ledger: initialized="
+                + BridgeWalletData.initialized(raw, currencyId)
+                + " cashMirror=" + cashMirror + " piggyMirror=" + piggyMirror
+                + " version=" + version
+                + " reserve=" + (balance - cashMirror - piggyMirror)
+                + " skipDeathRetention=" + BridgeConfig.skipDeathRetention()), false);
+        source.sendSuccess(() -> Component.literal("state: health=" + player.getHealth()
+                + " isDeadOrDying=" + player.isDeadOrDying()
+                + " carriedCopper=" + ConfluenceMoney.getCarried(player)
+                + " coinSlots=" + ConfluenceMoney.countCoinSlots(player)), false);
         return 1;
     }
 

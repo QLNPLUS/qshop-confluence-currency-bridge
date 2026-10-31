@@ -105,11 +105,12 @@ dependencies {
         runtimeOnly fg.deobf(findProperty('confluence_jar'))
         runtimeOnly fg.deobf('top.theillusivec4.curios:curios-forge:5.14.1+1.20.1')
         runtimeOnly fg.deobf('software.bernie.geckolib:geckolib-forge-1.20.1:4.8.4')
-        def portlib = file("${rootDir}/libs/mesdagportlib-1.0.jar")
+        def portlibVersion = findProperty('portlib_version') ?: '1.2.7'
+        def portlib = file("${rootDir}/libs/mesdagportlib-${portlibVersion}.jar")
         if (portlib.isFile()) {
-            runtimeOnly fg.deobf('local:mesdagportlib:1.0')
+            runtimeOnly fg.deobf("local:mesdagportlib:${portlibVersion}")
         } else {
-            logger.warn("缺少 libs/mesdagportlib-1.0.jar；Confluence 需要 MesdagPortLib，" +
+            logger.warn("缺少 libs/mesdagportlib-${portlibVersion}.jar；Confluence 需要 MesdagPortLib，" +
                     "服务器冒烟测试会因缺少前置失败。运行 tools/fetch-dev-runtime.ps1 下载。")
         }
     }

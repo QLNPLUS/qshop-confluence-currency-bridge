@@ -92,6 +92,20 @@ public final class ConfluenceCurrencyBridge {
 
         long cash = ConfluenceMoney.getCarried(player);
         long piggy = BridgeConfig.includePiggyBank() ? ConfluenceMoney.getPiggyBank(player) : 0L;
+        double storedVersion = BridgeWalletData.storedVersion(wallet, currencyId);
+        if (storedVersion > 0.0D) {
+            // A wallet written by an older bridge revision keeps its QShop total: only the cash/piggy
+            // mirrors are re-anchored to what the player actually carries. Re-anchoring is what makes
+            // a mirror that was scaled away (1.1.0 and QShop death retention) stop double-counting the
+            // same coins, which otherwise let the bridge mint the dropped coins a second time.
+            double kept = sanitize(wallet.getBalance(currencyId));
+            BridgeWalletData.markInitialized(wallet, currencyId, cash, piggy);
+            LOGGER.info("QShop Confluence Bridge: {} 的账本版本 {} → {}，按实际携带 {} 铜重新锚定现金镜像"
+                            + "（余额保持 {}）",
+                    player.getName().getString(), storedVersion, BridgeWalletData.version(), cash, kept);
+            return;
+        }
+
         long pending = legacyPending(player);
         double oldFraction = fractionOf(wallet.getBalance(currencyId));
         double initial = (double) cash + (double) piggy + oldFraction + (double) pending;
@@ -144,6 +158,11 @@ public final class ConfluenceCurrencyBridge {
     }
 
     private static void rebalanceCash(Player player, IWallet wallet, String currencyId) {
+        if (player.isDeadOrDying()) {
+            // A corpse must not receive fresh coins: Confluence already dropped the physical money,
+            // and anything re-created here would be dropped (or restored) a second time.
+            return;
+        }
         long total = ConfluenceCurrencyFormat.toCopper(wallet.getBalance(currencyId));
         long piggy = BridgeConfig.includePiggyBank() ? ConfluenceMoney.getPiggyBank(player) : 0L;
         if (BridgeConfig.includePiggyBank() && piggy > total) {

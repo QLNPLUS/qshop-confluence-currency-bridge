@@ -2,6 +2,7 @@ package com.qshop.confluence.mixin.qshop;
 
 import com.qshop.api.CurrencyService;
 import com.qshop.confluence.BridgeConfig;
+import com.qshop.confluence.BridgeWalletData;
 import com.qshop.confluence.ConfluenceCurrencyBridge;
 import com.qshop.confluence.OfflineWalletMigration;
 import com.qshop.wallet.WalletCapability;
@@ -77,15 +78,22 @@ public abstract class CurrencyServiceMixin {
         }
     }
 
-    /** Confluence already drops its coins on death; skip QShop's duplicate deduction. */
+    /**
+     * Confluence already drops its coins on death; skip QShop's duplicate deduction for the bound
+     * currency. The bridge's own ledger keys must be skipped too: scaling {@code cash}/{@code version}
+     * would destroy the baseline the next inventory reconciliation compares against.
+     */
     @Inject(method = "set(Lnet/minecraft/server/level/ServerPlayer;Ljava/lang/String;D"
             + "Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/core/BlockPos;Z)D",
             at = @At("HEAD"), cancellable = true, remap = false)
     private void qshop_confluence$skipDeathRetention(ServerPlayer player, String currencyId, double amount,
                                                      ResourceLocation source, BlockPos sourcePos,
                                                      boolean triggerEvent, CallbackInfoReturnable<Double> cir) {
-        if (!BridgeConfig.skipDeathRetention() || !ConfluenceCurrencyBridge.bound(currencyId)
+        if (!BridgeConfig.skipDeathRetention()
                 || source == null || !source.equals(CurrencyService.SOURCE_DEATH)) {
+            return;
+        }
+        if (!ConfluenceCurrencyBridge.bound(currencyId) && !BridgeWalletData.isInternalKey(currencyId)) {
             return;
         }
         var wallet = WalletCapability.get(player);

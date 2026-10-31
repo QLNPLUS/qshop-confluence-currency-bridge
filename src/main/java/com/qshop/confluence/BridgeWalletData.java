@@ -6,9 +6,18 @@ import com.qshop.wallet.IWallet;
 public final class BridgeWalletData {
 
     public static final String INTERNAL_PREFIX = "__qshop_confluence_bridge_v2.";
-    private static final double VERSION = 2.0D;
+    /**
+     * Ledger revision. 3 re-anchors the cash/piggy mirrors to the coins the player actually carries:
+     * before 1.1.1 QShop's death retention could scale those internal keys (a 0 mirror then made the
+     * next death drop unaccounted for and let the bridge mint the same coins a second time).
+     */
+    private static final double VERSION = 3.0D;
 
     private BridgeWalletData() {
+    }
+
+    public static double version() {
+        return VERSION;
     }
 
     public static String versionKey(String currencyId) {
@@ -34,6 +43,11 @@ public final class BridgeWalletData {
 
     public static boolean initialized(IWallet wallet, String currencyId) {
         return wallet.getBalance(versionKey(currencyId)) == VERSION;
+    }
+
+    /** Version stored in the wallet; {@code 0} means this wallet never had a bridge ledger. */
+    public static double storedVersion(IWallet wallet, String currencyId) {
+        return wallet.getBalance(versionKey(currencyId));
     }
 
     public static void markInitialized(IWallet wallet, String currencyId,

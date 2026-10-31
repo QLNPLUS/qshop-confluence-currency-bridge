@@ -1,5 +1,63 @@
 # 更新日志
 
+## 1.1.2
+
+### Forge 1.20.1
+
+- 修复（真因，GameTest 已复现）：**“钱币没丢，却又出现 9999 个铂金币”**。QShop 的死亡货币保留
+  会遍历钱包里**每一个** key 并按保留系数缩放（`CurrencyService.set(..., SOURCE_DEATH)`），1.1.0 及
+  以前的桥接只跳过绑定的显示 key `"coins"`，**没有跳过自己的内部账本 key**
+  （`…bridge_v2.coins.cash` = 钱币镜像、`.version`、`.piggy`）。于是死亡把镜像和版本号一起缩放了：
+  下一次读取发现“背包里的钱比镜像多”，把差额当成**刚捡到的现金再入账一次**（总额常常正好翻倍），
+  随后 `rebalanceCash` 把这笔虚增**重新生成成真实钱币**放回背包 —— 掉落的钱币和新生成的钱币同时存在，
+  商店余额当然不降。1.1.1 已经堵住这条路径（混入会跳过内部 key），但它**不能自愈已经被写坏的存档**，
+  所以升级后现象照旧。
+- 修复：桥接账本版本升到 **3**。读取到旧版本写过的钱包时，把现金/存钱罐镜像按玩家**实际携带**的钱币
+  重新锚定，**不再重复入账**，QShop 余额保持不变（测试 `ledgerVersionReanchorKeepsBalance`）。
+- 修复：死亡对账之前先比对“死亡瞬间实测的携带钱币”与镜像，不一致就按实测值修正再对账，因此掉落一定
+  会被结算进余额（测试 `staleMirrorDoesNotDuplicateDroppedCoins`：余额归零、重生后不再拿到同样的钱币）。
+- 修复：`rebalanceCash` 不再给处于死亡/倒地状态的玩家发放钱币；尸体不该接收新生成的钱币。
+- 修复：死亡快照不再执行“会对账的读取”，否则诊断代码自己会先制造出它要检测的那笔虚增。
+- 测试：GameTest 由 9 项增至 **12 项**（上述两项回归全部通过）。
+- 说明：**复活后储备会不会变回钱币物品？** 会。玩家恢复 alive 后，桥接会把余额里“还能装进钱币槽”的部分
+  重新生成成钱币物品，上限就是可用钱币槽容量；余额里剩下的仍然留在 QShop 商店，**总额不变**。
+  实测（1.0e15 铜余额，钱币槽上限 399,960,000,000 铜）：
+  死亡掉落 399,960,000,000 铜 → 倒地复活后又回填 399,960,000,000 铜，总额保持 9.9960004E14 不变
+  （测试 `reserveRefillsCoinSlotsAfterRevive`）。真正的**重生**（respawn）如果装钱币的 curio 掉了，
+  钱币槽数为 0，回填就是 0，这笔价值全部安全留在商店里，等玩家重新装上钱袋再取用。
+- 说明：已经被翻倍的余额**不做自动修正**（桥接无法区分“重复入账”与合法储备），请用
+  `/qshopconfluence set <玩家> <金额>` 校准；`/qshopconfluence status` 的 `ledger:` 行会显示
+  `version=3.0`，可用来确认服务器加载的是哪个桥接构建（1.1.1 及以前是 `2.0`）。
+- 说明：`/qshopconfluence status` 的 `ledger:` 行现在显示 `version=3.0`，可用来确认服务器加载的是
+  哪个桥接构建（1.1.1 及以前是 `2.0`）。
+
+## 1.1.1
+
+### Forge 1.20.1
+
+- 修复：死亡时没有显式同步 QShop 余额。Confluence 在 `LivingDeathEvent` 里扣掉随身钱币后，
+  桥接现在会立即按实际现金差额对账，并在 `PlayerEvent.Clone`（死亡重生、QShop 复制钱包之后）
+  再对账一次；死亡中的玩家不会被重新生成钱币，避免掉落物与余额重复。
+- 兼容：PlayerRevive（`1.20` 分支）一类“取消死亡”的模组。它在 `LivingDeathEvent` 的
+  `HIGHEST` 优先级取消事件并把血量恢复到 `bleedingHealth`，玩家进入倒地流血状态而不是重生。
+  Confluence 的掉落监听器由 PortLib 以 `NORMAL + receiveCanceled=false` 注册，因此被取消的死亡
+  不会掉落钱币；桥接的对账改为 `LOWEST + receiveCanceled=true`，这样在其它模组于更晚优先级取消
+  死亡（护身符类）时也不会漏掉已经发生的钱币掉落。倒地期间不会有余额变化，真正死亡（流血致死、
+  `bypassDamageSources`、二次致死伤害）时才掉落钱币并对账。PlayerRevive 还会在玩家登出时击杀
+  倒地玩家，桥接现在会在玩家数据写盘前完成对账，避免下次登录余额“复活”。
+- 诊断：`/qshopconfluence status` 增加两行输出。`ledger:` 显示桥接内部账本（`cashMirror` 物理现金
+  镜像、`piggyMirror`、`version`、`reserve` = 余额中装不进钱币槽的储备部分），
+  `state:` 显示 `health` / `isDeadOrDying` / `carriedCopper` / `coinSlots`。
+  死亡对账同时会输出一行 INFO 日志（钱币前后值与 QShop 总额前后值），便于在服务器日志里定位。
+- 说明：余额里“装不进钱币槽”的部分会作为储备留在 QShop 钱包中，死亡只掉落并扣除**可携带**那部分
+  （实测满背包 + 钱币槽时可携带上限约 4.0e11 铜）。如果死亡后商店余额几乎不变，
+  先看 `ledger:` 里的 `reserve=` 是否就是没掉的那部分。
+- 修复：QShop 的死亡货币保留（`death.loseCurrencyOnDeath`）不再缩放桥接内部的
+  `cash`/`version` 账本键，避免对账基线失真。
+- 兼容：Confluence 依赖升级到 1.2.8（fileId 9099721）。1.2.8 的 `NPCTradeMenu` 新增
+  `NPCServiceMenu`、`getReforgeCost` 末尾除以 3；现有 NPC 交易/重铸混入注入点仍然有效，
+  启动时会主动加载 `NPCTradeMenu` 以尽早暴露上游重构。
+
 ## 1.1.0
 
 ### Forge 1.20.1

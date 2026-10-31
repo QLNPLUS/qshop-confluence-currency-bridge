@@ -42,13 +42,43 @@ against the sibling projects' build outputs.
 `build.gradle` stages those jars into `libs/` (flatDir) because ForgeGradle's `fg.deobf()`
 cannot deobfuscate a `files(...)` dependency. Build the sibling projects before this one.
 Confluence itself comes from CurseForge Maven (`curse.maven:confluence-1209464:<fileId>`).
+The current pin is Confluence 1.2.8 (fileId `9099721`). Its bundled TerraCurio 1.3.2 requires
+MesdagPortLib >= 1.2.7, so the dev runtime uses `portlib_version` from `gradle.properties`.
+
+PortLib has two mutually exclusive builds for 1.20.1: the CurseForge/backport files use the
+`org.mesdag.portlib` package (this is what Confluence 1.2.8 for 1.20.1 references — 0 references
+to `com.mesdag`), while `com.mesdag.portlib:portlib_forge` on `maven.confluence.ink` uses the
+renamed `com.mesdag.portlib` package. Mixing them produces
+`NoClassDefFoundError com/mesdag/portlib/curios/TerraCurioConfig` at mod scan time. Check the
+package prefix of both jars before blaming a version bump.
 
 ## Verification
 
 - `gradlew build` — compiles and produces the release JAR.
+- `gradlew runGameTestServer -Pwith_confluence_runtime=true --offline` — runs the functional
+  GameTests in `src/main/java/com/qshop/confluence/gametest/` (they are excluded from the release
+  jar). Add `-Dnet.minecraftforge.gradle.check.certs=false` when ForgeGradle's certificate check
+  fails, and grep the log for `GameTest` / `required tests` to read the results.
 - `gradlew runServer -Pwith_confluence_runtime=true` — dev server with QShop, Sell Box,
   Confluence, Curios, GeckoLib and MesdagPortLib on the classpath. `tools/fetch-dev-runtime.ps1`
   downloads the one prerequisite that has no Maven coordinates.
 - Release-JAR checks that a compile cannot prove: `MixinConfigs` in `META-INF/MANIFEST.MF`,
   `pack.mcmeta` at the archive root, and non-empty refmap entries for the two
   `Component#translatable` redirects (Forge branch only).
+
+Death ordering that the tests pin down: Confluence registers its `LivingDeathEvent` coin drop through
+PortLib at `NORMAL` with `receiveCanceled = false`, so a death cancelled at `HIGHEST`
+(PlayerRevive's bleeding state) drops nothing and must not move the wallet total. QShop applies its
+own death retention inside `PlayerEvent.Clone`, never on `LivingDeathEvent`, so a cancelled death
+never respawns and never retains. The bridge reconciles at `LOWEST` with `receiveCanceled = true`;
+see `BridgeDownedDeathGameTests`.
+
+Ledger integrity that the death sync depends on: the bridge stores its cash/piggy mirrors and its
+revision under internal QShop keys (`BridgeWalletData`). QShop's death retention iterates **every**
+key of the wallet and rescales it, so `CurrencyServiceMixin#qshop_confluence$skipDeathRetention` must
+skip both the bound currency id **and** `BridgeWalletData.isInternalKey(...)` — a scaled mirror makes
+the next read treat the difference as picked-up cash, credit it again (often doubling the total) and
+then materialise the phantom back into the inventory, i.e. the drop is duplicated. `BridgeWalletData`
+VERSION re-anchors the mirrors on load when a wallet was written by an older revision, and the
+rebalance of a dying player is suppressed (`rebalanceCash` returns while `isDeadOrDying`). Bump VERSION
+whenever a ledger semantic changes; a same-named jar silently keeps damaged wallets damaged.

@@ -68,6 +68,9 @@ public class QShopConfluenceMod {
             if (ConfluenceSupport.isLoaded()) {
                 checkTarget("com.qshop.sellbox.SellBoxPrices");
                 checkTarget("com.qshop.sellbox.SellBoxSaleService");
+                // Confluence 1.2.8 added NPCServiceMenu; loading the menu here proves the
+                // @Shadow fields and the sell-price injection points still resolve.
+                checkTarget("org.confluence.mod.common.entity.npc.trade.NPCTradeMenu");
             }
         }
     }
