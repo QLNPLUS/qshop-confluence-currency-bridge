@@ -49,6 +49,29 @@ public final class ConfluenceCurrencyBridge {
         return sanitize(wallet.getBalance(currencyId));
     }
 
+    /**
+     * Reconciles the wallet with what the player carries <b>without</b> turning reserve back into coins.
+     *
+     * <p>Used on death, respawn, logout and the passive tick fallback: those paths must never undo a death
+     * drop by re-materialising the reserve. QShop's own reads and writes still call
+     * {@link #readBalance}, so a shop transaction or an income does materialise coins as before.</p>
+     */
+    public static void reconcileOnly(ServerPlayer player) {
+        if (player == null || !active()) {
+            return;
+        }
+        IWallet wallet = WalletCapability.get(player);
+        if (wallet == null) {
+            return;
+        }
+        IWallet raw = wallet instanceof ConfluenceWallet wrapped ? wrapped.unwrap() : wallet;
+        String currencyId = BridgeConfig.currencyId();
+        initializeIfNeeded(player, raw, currencyId);
+        absorbLegacyPending(player, raw, currencyId);
+        normalizeCanonicalBalance(raw, currencyId);
+        reconcileExternalChanges(player, raw, currencyId);
+    }
+
     /** Money held on the menu cursor cannot be spent by a wallet transaction. */
     public static double cursorFloor(Player player) {
         return (double) Math.max(0L,
@@ -86,12 +109,26 @@ public final class ConfluenceCurrencyBridge {
     }
 
     private static void initializeIfNeeded(Player player, IWallet wallet, String currencyId) {
+        boolean scope = BridgeConfig.includePiggyBank();
         if (BridgeWalletData.initialized(wallet, currencyId)) {
+            // The piggy-bank scope is part of the ledger semantics: flipping bridge.includePiggyBank would
+            // otherwise look like "the piggy bank gained money" and be credited on top of coins that had
+            // already bought that balance - an exact doubling when the whole balance sits in the bank.
+            double storedScope = wallet.getBalance(BridgeWalletData.piggyScopeKey(currencyId));
+            if (Double.compare(storedScope, scope ? 1.0D : 0.0D) != 0) {
+                long cash = ConfluenceMoney.getCarried(player);
+                long piggy = scope ? ConfluenceMoney.getPiggyBank(player) : 0L;
+                double kept = sanitize(wallet.getBalance(currencyId));
+                BridgeWalletData.markInitialized(wallet, currencyId, cash, piggy, 0L, scope);
+                LOGGER.info("QShop Confluence Bridge: {} 的存钱罐计入策略已变更，按现有金额重新锚定镜像"
+                                + "（cash={} piggy={}，余额保持 {}）",
+                        player.getName().getString(), cash, piggy, kept);
+            }
             return;
         }
 
         long cash = ConfluenceMoney.getCarried(player);
-        long piggy = BridgeConfig.includePiggyBank() ? ConfluenceMoney.getPiggyBank(player) : 0L;
+        long piggy = scope ? ConfluenceMoney.getPiggyBank(player) : 0L;
         double storedVersion = BridgeWalletData.storedVersion(wallet, currencyId);
         if (storedVersion > 0.0D) {
             // A wallet written by an older bridge revision keeps its QShop total: only the cash/piggy
@@ -99,7 +136,7 @@ public final class ConfluenceCurrencyBridge {
             // a mirror that was scaled away (1.1.0 and QShop death retention) stop double-counting the
             // same coins, which otherwise let the bridge mint the dropped coins a second time.
             double kept = sanitize(wallet.getBalance(currencyId));
-            BridgeWalletData.markInitialized(wallet, currencyId, cash, piggy);
+            BridgeWalletData.markInitialized(wallet, currencyId, cash, piggy, 0L, scope);
             LOGGER.info("QShop Confluence Bridge: {} 的账本版本 {} → {}，按实际携带 {} 铜重新锚定现金镜像"
                             + "（余额保持 {}）",
                     player.getName().getString(), storedVersion, BridgeWalletData.version(), cash, kept);
@@ -110,7 +147,7 @@ public final class ConfluenceCurrencyBridge {
         double oldFraction = fractionOf(wallet.getBalance(currencyId));
         double initial = (double) cash + (double) piggy + oldFraction + (double) pending;
         wallet.setBalance(currencyId, sanitize(initial));
-        BridgeWalletData.markInitialized(wallet, currencyId, cash, piggy);
+        BridgeWalletData.markInitialized(wallet, currencyId, cash, piggy, 0L, scope);
         if (pending > 0L) {
             clearLegacyPending(player);
         }
@@ -142,8 +179,13 @@ public final class ConfluenceCurrencyBridge {
         long cashDelta = difference(cash, previousCash);
         long piggyDelta = difference(piggy, previousPiggy);
         if (cashDelta != 0L || piggyDelta != 0L) {
-            double updated = wallet.getBalance(currencyId) + (double) cashDelta + (double) piggyDelta;
-            wallet.setBalance(currencyId, sanitize(updated));
+            double before = wallet.getBalance(currencyId);
+            double updated = sanitize(before + (double) cashDelta + (double) piggyDelta);
+            wallet.setBalance(currencyId, updated);
+            LOGGER.info("QShop Confluence Bridge: {} 外部变动对账 {}：携带 {} 铜（镜像 {}，差 {}），"
+                            + "存钱罐 {} 铜（镜像 {}，差 {}），总额 {} → {}",
+                    player.getName().getString(), currencyId, cash, previousCash, cashDelta,
+                    piggy, previousPiggy, piggyDelta, before, updated);
         }
         wallet.setBalance(BridgeWalletData.cashKey(currencyId), cash);
         wallet.setBalance(BridgeWalletData.piggyKey(currencyId), piggy);

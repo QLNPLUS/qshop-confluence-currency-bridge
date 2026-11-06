@@ -192,10 +192,9 @@ public final class BridgeEvents {
         if (player == null || !ConfluenceCurrencyBridge.active()) {
             return;
         }
-        IWallet wallet = WalletCapability.get(player);
-        if (wallet != null) {
-            wallet.getBalance(BridgeConfig.currencyId());
-        }
+        // Reconcile only: death/respawn must not pull the reserve back out as fresh coins, otherwise a
+        // player whose balance exceeds the coin slots would get the dropped coins back instantly.
+        ConfluenceCurrencyBridge.reconcileOnly(player);
     }
 
     /** Current canonical total for the bound currency; reading it also performs a reconciliation. */
@@ -299,10 +298,9 @@ public final class BridgeEvents {
         if (!dirty && player.tickCount % RECONCILE_FALLBACK_TICKS != 0) {
             return;
         }
-        IWallet wallet = WalletCapability.get(player);
-        if (wallet != null) {
-            wallet.getBalance(BridgeConfig.currencyId());
-        }
+        // Reconcile only: the passive fallback must never re-materialise reserve, or a respawned player
+        // whose balance exceeds the coin slots would receive the coins they just dropped.
+        ConfluenceCurrencyBridge.reconcileOnly(player);
     }
 
     /** 启动完成后确保绑定货币在 QShop 货币表里存在。 */

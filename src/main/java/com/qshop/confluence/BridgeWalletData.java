@@ -32,6 +32,11 @@ public final class BridgeWalletData {
         return key(currencyId, "piggy");
     }
 
+    /** Whether the piggy bank was counted when the ledger was written: {@code 1} = included. */
+    public static String piggyScopeKey(String currencyId) {
+        return key(currencyId, "piggy_scope");
+    }
+
     /** Legacy offline payouts already merged while migrating an old player.dat file. */
     public static String absorbedPendingKey(String currencyId) {
         return key(currencyId, "absorbed_pending");
@@ -51,19 +56,17 @@ public final class BridgeWalletData {
     }
 
     public static void markInitialized(IWallet wallet, String currencyId,
-                                       long cash, long piggyBank, long absorbedPending) {
+                                       long cash, long piggyBank, long absorbedPending,
+                                       boolean piggyIncluded) {
         wallet.setBalance(versionKey(currencyId), VERSION);
         wallet.setBalance(cashKey(currencyId), Math.max(0L, cash));
         wallet.setBalance(piggyKey(currencyId), Math.max(0L, piggyBank));
+        wallet.setBalance(piggyScopeKey(currencyId), piggyIncluded ? 1.0D : 0.0D);
         if (absorbedPending > 0L) {
             wallet.setBalance(absorbedPendingKey(currencyId), absorbedPending);
         }
     }
 
-    public static void markInitialized(IWallet wallet, String currencyId,
-                                       long cash, long piggyBank) {
-        markInitialized(wallet, currencyId, cash, piggyBank, 0L);
-    }
 
     public static boolean isInternalKey(String key) {
         return key != null && key.startsWith(INTERNAL_PREFIX);

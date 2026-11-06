@@ -17,6 +17,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.common.ForgeConfigSpec;
 
 import java.util.List;
@@ -381,6 +382,101 @@ public final class BridgeDeathSyncGameTests {
     }
 
 
+    /**
+     * A ledger written while the piggy bank was outside the bridge's total must not credit the bank when
+     * the scope changes: the same coins would be counted twice (an exact doubling when the balance sits
+     * in the bank).
+     */
+    @GameTest(templateNamespace = "qshop_confluence", template = "empty")
+    public static void piggyScopeChangeDoesNotDouble(GameTestHelper helper) {
+        FakePlayer player = spawn(helper, new GameProfile(UUID.randomUUID(), "bridge-piggy-scope"));
+        IWallet wallet = WalletCapability.get(player);
+        helper.assertTrue(wallet != null, "FakePlayer did not receive the QShop wallet capability");
+        wallet.setBalance("coins", 1_000_000.0D);
+        double before = wallet.getBalance("coins");
+
+        // Simulate a ledger whose piggy bank was not counted, while the bank now holds 500 000 copper.
+        IWallet raw = ((ConfluenceWallet) wallet).unwrap();
+        raw.setBalance(BridgeWalletData.piggyScopeKey("coins"), 0.0D);
+        raw.setBalance(BridgeWalletData.piggyKey("coins"), 0.0D);
+        long bank = setPiggyBankTotal(player, 500_000L);
+
+        double after = wallet.getBalance("coins");
+        LOGGER.info("qshop_confluence piggy-scope: balance={}->{} bank={}", before, after, bank);
+        helper.assertTrue(bank >= 500_000L, "could not put money into the piggy bank: " + bank);
+        helper.assertTrue(after == before,
+                "changing the piggy-bank scope credited the bank again: " + before + " -> " + after);
+        helper.succeed();
+    }
+
+    private static long setPiggyBankTotal(FakePlayer player, long amount) {
+        try {
+            Class<?> type = Class.forName("org.confluence.mod.common.attachment.PlayerPiggyBankContainer");
+            Object container = type.getMethod("of", net.minecraft.world.entity.player.Player.class)
+                    .invoke(null, player);
+            container.getClass().getMethod("setTotalMoney", long.class).invoke(container, amount);
+            return ((Number) container.getClass().getMethod("getTotalMoney").invoke(container)).longValue();
+        } catch (Throwable ignored) {
+            return -1L;
+        }
+    }
+
+    /**
+     * A balance above the coin slots' capacity must not flood back at respawn: the reserve is wallet money,
+     * and a death has to stay a real loss for the part that was carried.
+     */
+    @GameTest(templateNamespace = "qshop_confluence", template = "empty")
+    public static void largeReserveDoesNotRefillOnRespawn(GameTestHelper helper) {
+        ForgeConfigSpec.BooleanValue setting = playerDropsMoneySetting();
+        helper.assertTrue(setting != null, "Confluence PLAYER_DROPS_MONEY was not found");
+        boolean original = setting.get();
+        try {
+            setting.set(true);
+            GameProfile profile = new GameProfile(UUID.randomUUID(), "bridge-big-reserve");
+            FakePlayer dead = spawn(helper, profile);
+            IWallet wallet = WalletCapability.get(dead);
+            wallet.setBalance("coins", 1.0E12);
+            long carriedBefore = ConfluenceMoney.getCarried(dead);
+            double balanceBefore = wallet.getBalance("coins");
+            helper.assertTrue(carriedBefore > 0L, "no coins were materialised");
+            helper.assertTrue((double) carriedBefore < balanceBefore, "the balance should exceed the slots");
+
+            dead.setHealth(0.0F);
+            MinecraftForge.EVENT_BUS.post(new LivingDeathEvent(dead,
+                    helper.getLevel().damageSources().genericKill()));
+            long carriedAfterDeath = ConfluenceMoney.getCarried(dead);
+            double balanceAfterDeath = ((ConfluenceWallet) wallet).unwrap().getBalance("coins");
+
+            FakePlayer fresh = new FakePlayer(helper.getLevel(), profile);
+            IWallet freshWallet = WalletCapability.get(fresh);
+            helper.assertTrue(freshWallet != null, "respawned FakePlayer did not receive a wallet");
+            freshWallet.copyFrom(wallet);
+            MinecraftForge.EVENT_BUS.post(new PlayerEvent.Clone(dead, fresh, true));
+
+            long carriedAtRespawn = ConfluenceMoney.getCarried(fresh);
+            double balanceAtRespawn = ((ConfluenceWallet) freshWallet).unwrap().getBalance("coins");
+            LOGGER.info("qshop_confluence big-reserve: carried={}->{} balance={}->{}->{} respawnCarried={}",
+                    carriedBefore, carriedAfterDeath, balanceBefore, balanceAfterDeath,
+                    balanceAtRespawn, carriedAtRespawn);
+
+            helper.assertTrue(carriedAfterDeath == 0L, "the drop left coins behind");
+            helper.assertTrue(balanceAfterDeath == balanceBefore - (double) carriedBefore,
+                    "the drop was not deducted once: " + balanceBefore + " -> " + balanceAfterDeath);
+            helper.assertTrue(carriedAtRespawn == 0L,
+                    "the reserve was re-materialised at respawn: " + carriedAtRespawn);
+            helper.assertTrue(balanceAtRespawn == balanceAfterDeath,
+                    "respawn changed the total: " + balanceAfterDeath + " -> " + balanceAtRespawn);
+
+            // A shop transaction may still materialise coins from the remaining balance.
+            freshWallet.setBalance("coins", balanceAtRespawn);
+            helper.assertTrue(ConfluenceMoney.getCarried(fresh) > 0L,
+                    "a wallet write should materialise coins again");
+        } finally {
+            setting.set(original);
+        }
+        helper.succeed();
+    }
+
     private static ForgeConfigSpec.BooleanValue playerDropsMoneySetting() {
         try {
             Class<?> type = Class.forName("org.confluence.mod.common.CommonConfigs");
@@ -389,7 +485,6 @@ public final class BridgeDeathSyncGameTests {
             return null;
         }
     }
-
     private static Item platinumCoin() {
         return BuiltInRegistries.ITEM.get(new ResourceLocation("confluence", "platinum_coin"));
     }

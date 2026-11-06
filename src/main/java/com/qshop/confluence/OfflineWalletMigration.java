@@ -63,7 +63,8 @@ public final class OfflineWalletMigration {
                 balance = ConfluenceCurrencyBridge.MAX_SUPPORTED_BALANCE;
             }
             wallet.setBalance(currencyId, Math.min(balance, ConfluenceCurrencyBridge.MAX_SUPPORTED_BALANCE));
-            BridgeWalletData.markInitialized(wallet, currencyId, cash, piggyBank, pending);
+            BridgeWalletData.markInitialized(wallet, currencyId, cash, piggyBank, pending,
+                    BridgeConfig.includePiggyBank());
 
             forgeCaps.put(WALLET_CAPABILITY_KEY, wallet.serializeNBT());
             playerData.put(FORGE_CAPS_KEY, forgeCaps);
