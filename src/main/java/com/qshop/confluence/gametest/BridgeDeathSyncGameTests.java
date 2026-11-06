@@ -20,6 +20,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.common.ForgeConfigSpec;
 
+import java.util.ArrayList;
+import net.minecraftforge.event.entity.living.LivingDropsEvent;
 import java.util.List;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraftforge.common.MinecraftForge;
@@ -471,6 +473,54 @@ public final class BridgeDeathSyncGameTests {
             freshWallet.setBalance("coins", balanceAtRespawn);
             helper.assertTrue(ConfluenceMoney.getCarried(fresh) > 0L,
                     "a wallet write should materialise coins again");
+        } finally {
+            setting.set(original);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Live regression: some mods copy coin stacks into the death drops instead of removing them, so the
+     * same money exists both on the player and in the drops. Intercepting must remove the duplicate and
+     * leave the total alone - putting the stacks back used to double the balance.
+     */
+    @GameTest(templateNamespace = "qshop_confluence", template = "empty")
+    public static void interceptedDropOfCopiedCoinsDoesNotDouble(GameTestHelper helper) {
+        ForgeConfigSpec.BooleanValue setting = playerDropsMoneySetting();
+        helper.assertTrue(setting != null, "Confluence PLAYER_DROPS_MONEY was not found");
+        boolean original = setting.get();
+        try {
+            setting.set(false);
+            FakePlayer player = spawn(helper, new GameProfile(UUID.randomUUID(), "bridge-copy-drop"));
+            IWallet wallet = WalletCapability.get(player);
+            helper.assertTrue(wallet != null, "FakePlayer did not receive the QShop wallet capability");
+            wallet.setBalance("coins", 5_000_000.0D);
+            double before = wallet.getBalance("coins");
+            long carriedBefore = ConfluenceMoney.getCarried(player);
+            Item platinum = platinumCoin();
+            helper.assertTrue(platinum != null, "confluence:platinum_coin is missing");
+            helper.assertTrue(carriedBefore >= 1_000_000L, "no platinum coins were materialised");
+
+            // A mod copies the carried coins into the death drops without taking them away.
+            ItemEntity duplicate = new ItemEntity(helper.getLevel(),
+                    player.getX(), player.getY(), player.getZ(),
+                    new ItemStack(platinum, (int) (carriedBefore / 1_000_000L)));
+            List<ItemEntity> drops = new ArrayList<>();
+            drops.add(duplicate);
+            LivingDropsEvent dropsEvent = new LivingDropsEvent(player,
+                    helper.getLevel().damageSources().genericKill(), drops, 0, false);
+            MinecraftForge.EVENT_BUS.post(dropsEvent);
+
+            double after = wallet.getBalance("coins");
+            LOGGER.info("qshop_confluence copy-drop: balance={}->{} carried={} dropsLeft={}",
+                    before, after, ConfluenceMoney.getCarried(player), dropsEvent.getDrops().size());
+            // Other listeners may add further drops to the same event; what must hold is the wallet:
+            // intercepting a copied drop may not change what the player carries or what the shop holds.
+            helper.assertTrue(ConfluenceMoney.getCarried(player) == carriedBefore,
+                    "coins were put back on top of the copies: " + carriedBefore + " -> "
+                            + ConfluenceMoney.getCarried(player));
+            helper.assertTrue(after == before,
+                    "intercepting a copied drop changed the total: " + before + " -> " + after);
         } finally {
             setting.set(original);
         }

@@ -112,12 +112,12 @@ public final class BridgeEvents {
     }
 
     /**
-     * Confluence 的 {@code playerDropsMoney=false} 只关掉它自己的钱币掉落；原版死亡战利品照样会拿走
-     * 主背包里的钱币，而主背包里的钱币正是桥接放进去的。这里把这类掉落拦下来放回玩家身上（先钱币槽，
-     * 再主背包），放不下的记回 QShop 钱包——这样“死亡不掉钱”的配置才真正成立，且不丢钱、不重复。
+     * Confluence 的 {@code playerDropsMoney=false} 只关掉它自己的钱币掉落；原版死亡战利品仍可能带走
+     * 主背包/钱币槽里的钱币。这里把这类掉落拦下来，但**不再放回玩家身上**：实测某些模组会“复制”
+     * 而非移走钱币（同额同时存在于钱币槽和掉落物里），放回会把钱翻倍。
      *
-     * <p>本事件在原版 {@code dropAllDeathLoot} 内触发，早于 {@code LivingDeathEvent}，所以随后
-     * 的动作快照看到的已经是“放回之后”的携带量，死亡对账不会把这笔钱再扣一次。</p>
+     * <p>只把“确实从玩家身上消失”的那部分按钱包余额记回（钱包是唯一真相），因此既不会掉钱，
+     * 也不会凭空多出钱。</p>
      */
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onPlayerDrops(LivingDropsEvent event) {
@@ -126,29 +126,35 @@ public final class BridgeEvents {
                 || ConfluenceSupport.playerDropsMoney()) {
             return;
         }
-        long restored = 0L;
-        long credited = 0L;
+        long intercepted = 0L;
         for (Iterator<ItemEntity> iterator = event.getDrops().iterator(); iterator.hasNext(); ) {
             ItemEntity drop = iterator.next();
             ItemStack stack = drop.getItem();
             if (!ConfluenceMoney.isBridgeCurrencyStack(stack)) {
                 continue;
             }
+            intercepted += ConfluenceMoney.copperValue(stack);
             iterator.remove();
-            long value = ConfluenceMoney.copperValue(stack);
-            ItemStack leftover = ConfluenceMoney.restoreCoins(player, stack);
-            long missing = leftover.isEmpty() ? 0L : ConfluenceMoney.copperValue(leftover);
-            if (missing > 0L) {
-                ConfluenceCurrencyBridge.credit(player, missing);
-                credited += missing;
-            }
-            restored += value - missing;
         }
-        if (restored > 0L || credited > 0L) {
-            LOGGER.info("QShop Confluence Bridge: {} 死亡时 Confluence 配置为不掉钱，已拦截钱币掉落"
-                            + "（放回随身 {} 铜，放不下记回钱包 {} 铜）",
-                    player.getName().getString(), restored, credited);
+        if (intercepted <= 0L) {
+            return;
         }
+        IWallet wallet = WalletCapability.get(player);
+        if (wallet == null) {
+            return;
+        }
+        IWallet raw = wallet instanceof ConfluenceWallet wrapped ? wrapped.unwrap() : wallet;
+        String currencyId = BridgeConfig.currencyId();
+        long carried = ConfluenceMoney.getCarried(player);
+        long mirror = ConfluenceCurrencyFormat.toCopper(
+                raw.getBalance(BridgeWalletData.cashKey(currencyId)));
+        long missing = Math.max(0L, mirror - carried);
+        if (missing > 0L) {
+            ConfluenceCurrencyBridge.credit(player, missing);
+        }
+        LOGGER.info("QShop Confluence Bridge: {} 死亡时 Confluence 配置为不掉钱，已拦截钱币掉落 {} 铜"
+                        + "（实际从身上消失 {} 铜，已记回钱包；未消失的部分是重复掉落，直接丢弃）",
+                player.getName().getString(), intercepted, missing);
     }
 
     /**
