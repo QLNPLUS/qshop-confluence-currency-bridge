@@ -66,12 +66,21 @@ package prefix of both jars before blaming a version bump.
   `pack.mcmeta` at the archive root, and non-empty refmap entries for the two
   `Component#translatable` redirects (Forge branch only).
 
-Death ordering that the tests pin down: Confluence registers its `LivingDeathEvent` coin drop through
-PortLib at `NORMAL` with `receiveCanceled = false`, so a death cancelled at `HIGHEST`
-(PlayerRevive's bleeding state) drops nothing and must not move the wallet total. QShop applies its
-own death retention inside `PlayerEvent.Clone`, never on `LivingDeathEvent`, so a cancelled death
-never respawns and never retains. The bridge reconciles at `LOWEST` with `receiveCanceled = true`;
-see `BridgeDownedDeathGameTests`.
+Death ordering that the tests pin down: Confluence 1.2.8 registers its `LivingDeathEvent` coin drop
+through PortLib at `NORMAL`, but **1.2.11 registers `dropMoneyOnDeath` at `LOWEST`** (same priority the
+bridge used to reconcile at, so listener order decided whether the drop was seen). The bridge reconciles
+at `MONITOR` — the last bus priority — so it always runs after any drop, for either version. A death
+cancelled at `HIGHEST` (PlayerRevive's bleeding state) drops nothing and must not move the wallet total.
+QShop applies its own death retention inside `PlayerEvent.Clone`, never on `LivingDeathEvent`, so a
+cancelled death never respawns and never retains. See `BridgeDownedDeathGameTests`.
+
+Running GameTests against a live instance's own jars (the only way to catch version drift like the
+`LOWEST` registration above):
+`./gradlew runGameTestServer -Pwith_confluence_runtime=true -Pconfluence_jar=local:confluence:<ver>
+-Pportlib_version=<ver> "-Pqshop_jar=<path>/qshop-forge-1.20.1-<ver>.jar" "-Psellbox_jar=<path>/..."`
+after copying Confluence and PortLib into `libs/confluence-<ver>.jar` / `libs/mesdagportlib-<ver>.jar`
+(flatDir). Restore `libs/qshop-1.0.jar` and `libs/qshop_sellbox-1.0.jar` afterwards, or the next default
+build silently keeps using the instance's versions.
 
 Ledger integrity that the death sync depends on: the bridge stores its cash/piggy mirrors and its
 revision under internal QShop keys (`BridgeWalletData`). QShop's death retention iterates **every**

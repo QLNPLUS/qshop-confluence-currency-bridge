@@ -151,7 +151,15 @@ public final class BridgeEvents {
         }
     }
 
-    @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
+    /**
+     * Reconciles after Confluence has dropped its coins.
+     *
+     * <p>{@code MONITOR} is the last bus priority, and that matters: Confluence 1.2.8 drops at
+     * {@code NORMAL}, but 1.2.11 registers {@code dropMoneyOnDeath} at {@code LOWEST} (PortLib), the same
+     * priority the bridge used to reconcile at - so the listener order decided whether the drop was seen
+     * at all. Reconciling at {@code MONITOR} always runs after any drop, whatever the Confluence version.</p>
+     */
+    @SubscribeEvent(priority = EventPriority.MONITOR, receiveCanceled = true)
     public static void onPlayerDeath(LivingDeathEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player) || !ConfluenceCurrencyBridge.active()) {
             return;
