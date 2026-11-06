@@ -12,6 +12,14 @@ import com.qshop.wallet.WalletCapability;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.common.ForgeConfigSpec;
+
+import java.util.List;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.util.FakePlayer;
@@ -261,6 +269,142 @@ public final class BridgeDeathSyncGameTests {
         helper.assertTrue(ConfluenceMoney.getCarried(player) == 123_456L,
                 "coins were duplicated while migrating: " + ConfluenceMoney.getCarried(player));
         helper.succeed();
+    }
+
+    /**
+     * Confluence's {@code playerDropsMoney=false} must mean "no money on the ground": the bridge may not
+     * put coins where vanilla death loot takes them, and Confluence's own drop stays disabled.
+     */
+    @GameTest(templateNamespace = "qshop_confluence", template = "empty")
+    public static void keptMoneyPolicySuppressesCoinDrops(GameTestHelper helper) {
+        ForgeConfigSpec.BooleanValue setting = playerDropsMoneySetting();
+        helper.assertTrue(setting != null, "Confluence PLAYER_DROPS_MONEY was not found");
+        boolean original = setting.get();
+        try {
+            setting.set(false);
+            FakePlayer player = spawn(helper, new GameProfile(UUID.randomUUID(), "bridge-keep-money"));
+            IWallet wallet = WalletCapability.get(player);
+            helper.assertTrue(wallet != null, "FakePlayer did not receive the QShop wallet capability");
+            wallet.setBalance("coins", 1_000_000.0D);
+
+            long carriedBefore = ConfluenceMoney.getCarried(player);
+            double balanceBefore = wallet.getBalance("coins");
+            long dropsBefore = countCoinDrops(helper);
+            helper.assertTrue(carriedBefore > 0L, "the bridge materialised no coins");
+
+            player.setHealth(0.0F);
+            MinecraftForge.EVENT_BUS.post(new LivingDeathEvent(player,
+                    helper.getLevel().damageSources().genericKill()));
+
+            long dropsAfter = countCoinDrops(helper);
+            long carriedAfter = ConfluenceMoney.getCarried(player);
+            double balanceAfter = wallet.getBalance("coins");
+            LOGGER.info("qshop_confluence keep-money: carried={}->{} balance={}->{} coinDrops={}->{}",
+                    carriedBefore, carriedAfter, balanceBefore, balanceAfter, dropsBefore, dropsAfter);
+
+            helper.assertTrue(dropsAfter == dropsBefore,
+                    "coins dropped although playerDropsMoney=false: " + dropsBefore + " -> " + dropsAfter);
+            helper.assertTrue(carriedAfter == carriedBefore,
+                    "coins left the player although money must be kept: " + carriedBefore + " -> " + carriedAfter);
+            helper.assertTrue(balanceAfter == balanceBefore,
+                    "the wallet total moved although nothing was dropped: " + balanceBefore + " -> "
+                            + balanceAfter);
+        } finally {
+            setting.set(original);
+        }
+        helper.succeed();
+    }
+
+    /** With the setting on (Confluence's default) the drop must still happen and reduce the total. */
+    @GameTest(templateNamespace = "qshop_confluence", template = "empty")
+    public static void droppedMoneyPolicyStillDrops(GameTestHelper helper) {
+        ForgeConfigSpec.BooleanValue setting = playerDropsMoneySetting();
+        helper.assertTrue(setting != null, "Confluence PLAYER_DROPS_MONEY was not found");
+        boolean original = setting.get();
+        try {
+            setting.set(true);
+            FakePlayer player = spawn(helper, new GameProfile(UUID.randomUUID(), "bridge-drop-money"));
+            IWallet wallet = WalletCapability.get(player);
+            helper.assertTrue(wallet != null, "FakePlayer did not receive the QShop wallet capability");
+            wallet.setBalance("coins", 1_000_000.0D);
+
+            long carriedBefore = ConfluenceMoney.getCarried(player);
+            double balanceBefore = wallet.getBalance("coins");
+            long dropsBefore = countCoinDrops(helper);
+
+            player.setHealth(0.0F);
+            MinecraftForge.EVENT_BUS.post(new LivingDeathEvent(player,
+                    helper.getLevel().damageSources().genericKill()));
+
+            long dropsAfter = countCoinDrops(helper);
+            double balanceAfter = wallet.getBalance("coins");
+            LOGGER.info("qshop_confluence drop-money: carried={} balance={}->{} coinDrops={}->{}",
+                    ConfluenceMoney.getCarried(player), balanceBefore, balanceAfter, dropsBefore, dropsAfter);
+
+            helper.assertTrue(dropsAfter > dropsBefore,
+                    "no coins dropped although playerDropsMoney=true: " + dropsBefore + " -> " + dropsAfter);
+            helper.assertTrue(balanceAfter == balanceBefore - (double) carriedBefore,
+                    "the dropped coins were not deducted: " + balanceBefore + " -> " + balanceAfter
+                            + " (carried " + carriedBefore + ")");
+        } finally {
+            setting.set(original);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Coins must only ever live in Confluence's coin slots. The ordinary inventory is ordinary items:
+     * vanilla death loot drops them even when Confluence's {@code playerDropsMoney} is off, which is what
+     * made a death drop money that the shop still counted.
+     */
+    @GameTest(templateNamespace = "qshop_confluence", template = "empty")
+    public static void overflowStaysOutOfTheVanillaInventory(GameTestHelper helper) {
+        FakePlayer player = spawn(helper, new GameProfile(UUID.randomUUID(), "bridge-overflow"));
+        IWallet wallet = WalletCapability.get(player);
+        helper.assertTrue(wallet != null, "FakePlayer did not receive the QShop wallet capability");
+        wallet.setBalance("coins", 5.0E11);
+
+        long carried = ConfluenceMoney.getCarried(player);
+        long looseCoins = 0L;
+        for (int slot = 0; slot < player.getInventory().items.size(); slot++) {
+            looseCoins += ConfluenceMoney.copperValue(player.getInventory().items.get(slot));
+        }
+        double balance = wallet.getBalance("coins");
+        LOGGER.info("qshop_confluence overflow: carried={} looseInventoryCoins={} balance={} reserved={}",
+                carried, looseCoins, balance, balance - carried);
+
+        helper.assertTrue(carried > 0L, "the bridge materialised no coins");
+        helper.assertTrue((double) carried < balance, "the whole balance should not fit the coin slots");
+        helper.assertTrue(looseCoins == 0L,
+                "the bridge put coins into the ordinary inventory: " + looseCoins + " copper");
+        helper.succeed();
+    }
+
+
+    private static ForgeConfigSpec.BooleanValue playerDropsMoneySetting() {
+        try {
+            Class<?> type = Class.forName("org.confluence.mod.common.CommonConfigs");
+            return (ForgeConfigSpec.BooleanValue) type.getField("PLAYER_DROPS_MONEY").get(null);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static Item platinumCoin() {
+        return BuiltInRegistries.ITEM.get(new ResourceLocation("confluence", "platinum_coin"));
+    }
+
+    private static long countCoinDrops(GameTestHelper helper) {
+        BlockPos origin = helper.absolutePos(new BlockPos(0, 0, 0));
+        List<ItemEntity> items = helper.getLevel().getEntitiesOfClass(ItemEntity.class,
+                new net.minecraft.world.phys.AABB(origin).inflate(96.0D));
+        long total = 0L;
+        for (ItemEntity item : items) {
+            if (ConfluenceMoney.isBridgeCurrencyStack(item.getItem())) {
+                total += item.getItem().getCount();
+            }
+        }
+        return total;
     }
 
     private static FakePlayer spawn(GameTestHelper helper, GameProfile profile) {

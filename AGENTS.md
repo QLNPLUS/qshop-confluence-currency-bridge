@@ -82,3 +82,10 @@ then materialise the phantom back into the inventory, i.e. the drop is duplicate
 VERSION re-anchors the mirrors on load when a wallet was written by an older revision, and the
 rebalance of a dying player is suppressed (`rebalanceCash` returns while `isDeadOrDying`). Bump VERSION
 whenever a ledger semantic changes; a same-named jar silently keeps damaged wallets damaged.
+
+Physical coins live **only** in Confluence's coin slots (`ExtraInventory#getCoins`, `SIZE_COINS` = 4).
+Never write bridge coins into the ordinary inventory: inventory items are dropped by vanilla death loot
+regardless of Confluence's `playerDropsMoney`, which is exactly how a death used to drop money that the
+shop still counted. Overflow stays in the wallet as reserve. `ConfluenceSupport.playerDropsMoney()` reads
+that setting (default `true`), and `BridgeEvents#onPlayerDrops` puts any coin stack it can see in the drops
+back on the player, so `false` really means "nothing on the ground".

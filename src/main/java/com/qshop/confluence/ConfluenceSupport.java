@@ -106,4 +106,40 @@ public final class ConfluenceSupport {
         }
         return null;
     }
-}
+
+    private static volatile Object playerDropsMoneyValue;
+    private static volatile boolean playerDropsMoneyResolved;
+
+    /**
+     * Confluence 的 {@code playerDropsMoney}（默认 true）。
+     *
+     * <p>{@code false} 时 Confluence 自己在死亡里直接 return，但<b>原版死亡战利品不看这个开关</b>：
+     * 主背包里的钱币照样会变成掉落物。桥接必须按同一个开关兜底，否则玩家会看到“钱还在身上，
+     * 地上却多出一份”。读不到配置（旧版本或字段改名）时按 Confluence 的默认值 true 处理。</p>
+     */
+    public static boolean playerDropsMoney() {
+        if (!playerDropsMoneyResolved) {
+            synchronized (ConfluenceSupport.class) {
+                if (!playerDropsMoneyResolved) {
+                    try {
+                        Class<?> type = Class.forName("org.confluence.mod.common.CommonConfigs");
+                        java.lang.reflect.Field field = type.getField("PLAYER_DROPS_MONEY");
+                        playerDropsMoneyValue = field.get(null);
+                    } catch (Throwable ignored) {
+                        playerDropsMoneyValue = null;
+                    }
+                    playerDropsMoneyResolved = true;
+                }
+            }
+        }
+        Object value = playerDropsMoneyValue;
+        if (value == null) {
+            return true;
+        }
+        try {
+            return Boolean.TRUE.equals(value.getClass().getMethod("get").invoke(value));
+        } catch (Throwable ignored) {
+            return true;
+        }
+    }
+    }

@@ -33,7 +33,7 @@ Operators can use `/qshopconfluence status` to check the bridge and their balanc
 
 - The configured QShop currency is the shared balance. Confluence coins are its physical, carryable portion; value that cannot fit remains in the QShop wallet.
 - Confluence coins still follow Confluence's death-drop behavior. By default, the bridge skips QShop's separate death-currency deduction for the linked currency to avoid charging twice.
-- On death, only the coins the player is physically carrying are dropped. The part of the balance that does not fit the coin slots stays in the QShop wallet and is turned back into physical coins once the player is alive again with free coin slots; a dead or downed player is never handed new coins.
+- On death, only the coins the player is physically carrying are dropped. Coins live only in Confluence's coin slots, so Confluence's `playerDropsMoney` setting decides whether a death drops money at all (with it off nothing appears on the ground). The part of the balance that does not fit the coin slots stays in the QShop wallet and is turned back into physical coins once the player is alive again with free coin slots; a dead or downed player is never handed new coins.
 - QShop supports decimal prices. Any amount smaller than one copper coin remains as a fractional balance in the QShop wallet.
 
 License: **ARR — All Rights Reserved**.
@@ -75,7 +75,7 @@ QShop 与 Confluence 都安装时，才能使用共用余额、实体钱币同�
 
 - 已绑定的 QShop 货币是共用余额；Confluence 钱币是其中可随身携带的部分，放不进背包或钱币栏的金额保留在 QShop 钱包中。
 - Confluence 钱币仍按 Confluence 的规则掉落。默认情况下，桥接会跳过 QShop 对绑定货币的死亡扣除，避免同一笔钱被重复扣除。
-- 死亡时只掉落玩家身上那部分实体钱币。装不进钱币栏的余额保留在 QShop 钱包中，玩家恢复存活且有空闲钱币栏后会重新转换成实体钱币；处于死亡或倒地状态的玩家不会被发放新钱币。
+- 死亡时只掉落玩家身上那部分实体钱币。实体钱币只放在 Confluence 自己的钱币槽里，所以死亡到底掉不掉钱完全由 Confluence 的 `playerDropsMoney` 开关决定（关掉时地上不会出现任何钱币）。装不进钱币栏的余额保留在 QShop 钱包中，玩家恢复存活且有空闲钱币栏后会重新转换成实体钱币；处于死亡或倒地状态的玩家不会被发放新钱币。
 - QShop 价格可以包含小数；不足一枚铜币的部分会作为小数余额保存在 QShop 钱包中。
 
 许可证：**ARR（保留所有权利）**。

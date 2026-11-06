@@ -77,16 +77,15 @@ public final class ConfluenceMoney {
         }
     }
 
-    /** Number of player inventory and Confluence coin slots that can hold coin stacks. */
+    /**
+     * Number of Confluence coin slots that can hold coin stacks.
+     *
+     * <p>The ordinary inventory is deliberately <b>not</b> counted: coins there are ordinary items, so
+     * vanilla death loot drops them regardless of Confluence's {@code playerDropsMoney} setting.
+     * Value that does not fit the coin slots stays in the QShop wallet as reserve instead.</p>
+     */
     public static int countCoinSlots(Player player) {
         int slots = 0;
-        Inventory inventory = player.getInventory();
-        for (int slot = 0; slot < inventory.items.size(); slot++) {
-            ItemStack stack = inventory.items.get(slot);
-            if (stack.isEmpty() || isCoin(stack)) {
-                slots++;
-            }
-        }
         int extraSlots = extraSlotCount();
         for (int slot = 0; slot < extraSlots; slot++) {
             ItemStack stack = getExtraCoin(player, slot);
@@ -134,6 +133,34 @@ public final class ConfluenceMoney {
         } catch (ArithmeticException ignored) {
             return Long.MAX_VALUE;
         }
+    }
+
+    /** Copper value of one coin stack; {@code 0} when it is not a bridged coin. */
+    public static long copperValue(ItemStack stack) {
+        return stackValue(stack);
+    }
+
+    /**
+     * Puts a coin stack that was about to drop back on the player: Confluence coin slots first, then the
+     * ordinary inventory. Needed when Confluence's {@code playerDropsMoney} is off, because vanilla death
+     * loot still removes main-inventory coins.
+     *
+     * @return what did not fit, never {@code null}
+     */
+    public static ItemStack restoreCoins(Player player, ItemStack stack) {
+        if (player == null || stack == null || stack.isEmpty() || !isCoin(stack)) {
+            return stack == null ? ItemStack.EMPTY : stack;
+        }
+        ItemStack remaining = stack.copy();
+        for (int slot = 0; slot < extraSlotCount() && !remaining.isEmpty(); slot++) {
+            ItemStack existing = getExtraCoin(player, slot);
+            if (existing == null || existing.isEmpty()) {
+                setExtraCoin(player, slot, remaining.copy());
+                return ItemStack.EMPTY;
+            }
+        }
+        ItemStack leftover = remaining.copy();
+        return player.getInventory().add(leftover) ? ItemStack.EMPTY : leftover;
     }
 
     /** True for the four Confluence coin denominations bridged into QShop. */
@@ -230,19 +257,17 @@ public final class ConfluenceMoney {
             while (left > 0L) {
                 int stackSize = (int) Math.min(left, stackLimit);
                 ItemStack stack = new ItemStack(item, stackSize);
-                boolean placed = false;
                 while (extraSlot < extraSlotCount()) {
                     int candidate = extraSlot++;
                     ItemStack extraStack = getExtraCoin(player, candidate);
                     if (extraStack == null || extraStack.isEmpty()) {
                         setExtraCoin(player, candidate, stack);
-                        placed = true;
                         break;
                     }
                 }
-                if (!placed) {
-                    player.getInventory().add(stack);
-                }
+                // No inventory fallback: an overflow coin stack in the ordinary inventory would be
+                // dropped by vanilla death loot even when Confluence's playerDropsMoney is off.
+                // Whatever does not fit the coin slots stays in the QShop wallet as reserve.
                 left -= stackSize;
             }
         }

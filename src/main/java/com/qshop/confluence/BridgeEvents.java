@@ -9,6 +9,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.event.entity.living.LivingDropsEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.EntityItemPickupEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
@@ -25,6 +28,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Iterator;
 
 /**
  * Forge 总线事件：配置缓存失效、背包余额同步、货币条目自动创建、指令注册。
@@ -105,6 +109,46 @@ public final class BridgeEvents {
                 ConfluenceMoney.getCarried(player),
                 raw.getBalance(BridgeConfig.currencyId()),
                 BridgeConfig.includePiggyBank() ? ConfluenceMoney.getPiggyBank(player) : 0L});
+    }
+
+    /**
+     * Confluence 的 {@code playerDropsMoney=false} 只关掉它自己的钱币掉落；原版死亡战利品照样会拿走
+     * 主背包里的钱币，而主背包里的钱币正是桥接放进去的。这里把这类掉落拦下来放回玩家身上（先钱币槽，
+     * 再主背包），放不下的记回 QShop 钱包——这样“死亡不掉钱”的配置才真正成立，且不丢钱、不重复。
+     *
+     * <p>本事件在原版 {@code dropAllDeathLoot} 内触发，早于 {@code LivingDeathEvent}，所以随后
+     * 的动作快照看到的已经是“放回之后”的携带量，死亡对账不会把这笔钱再扣一次。</p>
+     */
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    public static void onPlayerDrops(LivingDropsEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)
+                || !ConfluenceCurrencyBridge.active()
+                || ConfluenceSupport.playerDropsMoney()) {
+            return;
+        }
+        long restored = 0L;
+        long credited = 0L;
+        for (Iterator<ItemEntity> iterator = event.getDrops().iterator(); iterator.hasNext(); ) {
+            ItemEntity drop = iterator.next();
+            ItemStack stack = drop.getItem();
+            if (!ConfluenceMoney.isBridgeCurrencyStack(stack)) {
+                continue;
+            }
+            iterator.remove();
+            long value = ConfluenceMoney.copperValue(stack);
+            ItemStack leftover = ConfluenceMoney.restoreCoins(player, stack);
+            long missing = leftover.isEmpty() ? 0L : ConfluenceMoney.copperValue(leftover);
+            if (missing > 0L) {
+                ConfluenceCurrencyBridge.credit(player, missing);
+                credited += missing;
+            }
+            restored += value - missing;
+        }
+        if (restored > 0L || credited > 0L) {
+            LOGGER.info("QShop Confluence Bridge: {} 死亡时 Confluence 配置为不掉钱，已拦截钱币掉落"
+                            + "（放回随身 {} 铜，放不下记回钱包 {} 铜）",
+                    player.getName().getString(), restored, credited);
+        }
     }
 
     @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
@@ -267,6 +311,8 @@ public final class BridgeEvents {
         if (!ConfluenceSupport.qshopPresent() || !ConfluenceCurrencyBridge.active()) {
             return;
         }
+        LOGGER.info("QShop Confluence Bridge: 死亡掉落策略 playerDropsMoney={}（桥接据此同步钱币掉落）",
+                ConfluenceSupport.playerDropsMoney());
         String currencyId = BridgeConfig.currencyId();
         try {
             Currency existing = CurrencyRegistry.get(currencyId);
