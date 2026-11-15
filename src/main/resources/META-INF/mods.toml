@@ -36,7 +36,16 @@ side = "BOTH"
 [[dependencies.${mod_id}]]
 modId = "confluence"
 mandatory = false
-versionRange = "[1.2.0,)"
+versionRange = "[1.2.12,)"
+ordering = "AFTER"
+side = "BOTH"
+
+# Confluence 1.2.12 起 MesdagPortLib 是它的强制前置；本模组只经 Confluence 间接用到，故保持可选，
+# 只用于把「忘了装前置」的报错指向正确的位置。
+[[dependencies.${mod_id}]]
+modId = "portlib"
+mandatory = false
+versionRange = "[1.3.2,)"
 ordering = "AFTER"
 side = "BOTH"
 

@@ -1,5 +1,22 @@
 # 更新日志
 
+## 1.1.7
+
+### Forge 1.20.1
+
+- 跟进 Confluence 1.2.12 与 MesdagPortLib 1.3.2。Confluence 1.2.12 的 `mods.toml` 强制要求
+  `portlib >= 1.3.2`，旧的 1.2.7 开发依赖会让 Confluence 在加载期直接拒绝启动；编译坐标与开发运行时
+  前置同步升级，`mods.toml` 的 Confluence 依赖范围提高到 `[1.2.12,)`，并把 PortLib 声明为可选前置，
+  装了太低版本时能让报错直接指向它。
+- 逐个核对过与新版 Confluence 的接缝，**运行时代码无需改动**：`NPCTradeMenu` 的 `npc`、
+  `refundablePurchases`、`quickMoveStack`、`sellCarried`、`getSellPrice` 全部保留，
+  `sellCarried` 内仍调用 `PlayerUtils.credit(Player, long)`（`require = 1` 的重定向继续成立），
+  `NPCTradeMenu$Buyback` 的 `stack` / `price` 不变，`PrefixUtils#getReforgeCost` 仍调用
+  `ValueComponent.getValue(ItemStack, int)`，`BaseNPC#getMood()` 与 `CommonConfigs` 也都还在。
+- Confluence 1.2.12 新增的 NPC 卖价显示（`NPCTradeMenu#getDisplayedSellPrice` 走 `sellPrices`
+  同步数据）取值来源就是本模组已经在改写的 `getSellPrice`，所以界面上显示的价格会继续跟随
+  QShop 货币定价，不会出现「显示原生价、结算走 QShop 价」的错位。
+
 ## 1.1.6
 
 ### Forge 1.20.1
