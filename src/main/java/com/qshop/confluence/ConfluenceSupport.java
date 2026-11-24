@@ -107,6 +107,12 @@ public final class ConfluenceSupport {
         return null;
     }
 
+    /** Confluence 存放通用配置的类名，1.2.13 起从 {@code CommonConfigs} 改名为 {@code ModCommonConfigs}。 */
+    private static final String[] COMMON_CONFIG_CLASSES = {
+            "org.confluence.mod.common.ModCommonConfigs",
+            "org.confluence.mod.common.CommonConfigs",
+    };
+
     private static volatile Object playerDropsMoneyValue;
     private static volatile boolean playerDropsMoneyResolved;
 
@@ -116,18 +122,39 @@ public final class ConfluenceSupport {
      * <p>{@code false} 时 Confluence 自己在死亡里直接 return，但<b>原版死亡战利品不看这个开关</b>：
      * 主背包里的钱币照样会变成掉落物。桥接必须按同一个开关兜底，否则玩家会看到“钱还在身上，
      * 地上却多出一份”。读不到配置（旧版本或字段改名）时按 Confluence 的默认值 true 处理。</p>
+     *
+     * <p>Confluence 1.2.13 把 {@code CommonConfigs} 改名为 {@code ModCommonConfigs}（字段名未变），
+     * 两个类名按顺序尝试，所以同一个 jar 仍能服务旧版本。</p>
      */
+    /**
+     * Confluence 的 {@code PLAYER_DROPS_MONEY} 配置项，读不到时返回 {@code null}。
+     *
+     * <p>类名候选见 {@link #COMMON_CONFIG_CLASSES}：字段名在 1.2.13 没变，只是外层配置类改了名。</p>
+     */
+    public static net.minecraftforge.common.ForgeConfigSpec.BooleanValue playerDropsMoneySetting() {
+        for (String className : COMMON_CONFIG_CLASSES) {
+            try {
+                Class<?> type = Class.forName(className);
+                Object value = type.getField("PLAYER_DROPS_MONEY").get(null);
+                if (value instanceof net.minecraftforge.common.ForgeConfigSpec.BooleanValue booleanValue) {
+                    return booleanValue;
+                }
+            } catch (Throwable ignored) {
+                // 换成下一个候选类名。
+            }
+        }
+        return null;
+    }
+
+    private static Object readPlayerDropsMoney() {
+        return playerDropsMoneySetting();
+    }
+
     public static boolean playerDropsMoney() {
         if (!playerDropsMoneyResolved) {
             synchronized (ConfluenceSupport.class) {
                 if (!playerDropsMoneyResolved) {
-                    try {
-                        Class<?> type = Class.forName("org.confluence.mod.common.CommonConfigs");
-                        java.lang.reflect.Field field = type.getField("PLAYER_DROPS_MONEY");
-                        playerDropsMoneyValue = field.get(null);
-                    } catch (Throwable ignored) {
-                        playerDropsMoneyValue = null;
-                    }
+                    playerDropsMoneyValue = readPlayerDropsMoney();
                     playerDropsMoneyResolved = true;
                 }
             }

@@ -5,6 +5,7 @@ import com.mojang.logging.LogUtils;
 import com.qshop.api.CurrencyService;
 import com.qshop.confluence.BridgeWalletData;
 import com.qshop.confluence.ConfluenceMoney;
+import com.qshop.confluence.ConfluenceSupport;
 import com.qshop.confluence.ConfluenceWallet;
 import com.qshop.confluence.QShopConfluenceMod;
 import com.qshop.wallet.IWallet;
@@ -528,12 +529,7 @@ public final class BridgeDeathSyncGameTests {
     }
 
     private static ForgeConfigSpec.BooleanValue playerDropsMoneySetting() {
-        try {
-            Class<?> type = Class.forName("org.confluence.mod.common.CommonConfigs");
-            return (ForgeConfigSpec.BooleanValue) type.getField("PLAYER_DROPS_MONEY").get(null);
-        } catch (Throwable ignored) {
-            return null;
-        }
+        return ConfluenceSupport.playerDropsMoneySetting();
     }
     private static Item platinumCoin() {
         return BuiltInRegistries.ITEM.get(new ResourceLocation("confluence", "platinum_coin"));

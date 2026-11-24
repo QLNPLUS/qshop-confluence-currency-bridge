@@ -1,5 +1,17 @@
 # 更新日志
 
+## 1.1.8
+
+### Forge 1.20.1
+
+- 跟进 Confluence 1.2.13 与 MesdagPortLib 1.3.3。Confluence 1.2.13 把通用配置类从 `CommonConfigs`
+  改名为 `ModCommonConfigs`（`PLAYER_DROPS_MONEY` 字段名未变），桥接原先只按旧类名反射读取，改名后
+  静默回退到「按默认值掉落钱币」，死亡掉落相关的 4 个 GameTest 全部报
+  `Confluence PLAYER_DROPS_MONEY was not found`。现在两个类名按顺序探测，同一个 jar 仍然服务
+  1.2.12 及更旧版本。
+- `mods.toml` 依赖范围同步为 `confluence [1.2.13,)`、可选 `portlib [1.3.3,)`，编译坐标与开发运行时
+  前置升级到 Confluence 1.2.13（file 9774584）/ PortLib 1.3.3（file 9774619）。
+
 ## 1.1.7
 
 ### Forge 1.20.1
